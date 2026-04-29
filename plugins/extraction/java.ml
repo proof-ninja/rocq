@@ -5,7 +5,7 @@
 (*s Production of Java syntax. *)
 
 open Pp
-(* open CErrors *)
+open CErrors
 open Util
 open Names
 open Table
@@ -28,25 +28,31 @@ let preamble _ _ comment _ _ =
   pp_header_comment comment 
   (* ++ import *)
   (* ++ dummy *)
+  ++ str "public class Main "
+  (* ++ str "public static void main (String[] args) " *)
 
+let comma = fun _ -> str ", "
 let paren = pp_par true
+
+let pp_global table k r =
+  if is_inline_custom r then str (find_custom r)
+  else str (Common.pp_global table k r)
 
 let pr_id id =
   str @@ String.map (fun c -> if c == '\'' then '$' else c) (Id.to_string id)
 
-let pp_abst st = function
+let rec pp_abst st = function
   | [] -> assert false
-  | [id] -> paren (str "lambda " ++ paren (pr_id id) ++ spc () ++ st)
-  | l -> paren (* TODO *)
-        (str "lambdas " ++ paren (prlist_with_sep spc pr_id l) ++ spc () ++ st)
+  | [id] -> paren (pr_id id ++ str " -> " ++ spc () ++ st)
+  | h::t -> paren (pr_id h ++ str " -> " ++ spc () ++ pp_abst st t)
 
 let pp_letin pat def body =
   let fstline = pat ++ str " =" ++ spc () ++ def ++ str ";" in
   hv 0 (hv 0 (hov 2 fstline ++ spc () ++ fnl ()) ++ spc () ++ hov 0 body)
-
+  
 
 let rec pp_expr table env args =
-  let apply st = pp_apply st true args in
+  let apply st = pp_apply3 st true args in
   function
     | MLrel n ->
         let id = get_db_name n env in apply (Id.print id)
@@ -54,7 +60,7 @@ let rec pp_expr table env args =
         let stl = List.map (pp_expr table env []) args' in
         pp_expr table env (stl @ args) f
     | MLlam _ as a ->
-        let fl,a' = collect_lams a in
+        let fl,a' = collect_lams a in (* [fl] : arguments, [a'] : body *)
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
         apply (pp_abst (pp_expr table env' [] a') (List.rev fl))
     | MLletin (id,a1,a2) ->
@@ -63,8 +69,56 @@ let rec pp_expr table env args =
         and pp_a1 = pp_expr table env [] a1
         and pp_a2 = pp_expr table env' [] a2 in
         hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
+    | MLglob r ->
+        apply (pp_global table Term r)
+    | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
+        assert (List.is_empty args);
+        (* let st = *)
+          paren (pp_global table Cons r ++
+                 paren (prlist_with_sep comma (pp_expr table env []) args'))
+        (* in
+        if is_coinductive (State.get_table table) r then paren (str "delay " ++ st) else st *)
+    | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
+    | MLcase (_,_,pv) when not (is_regular_match pv) ->
+        user_err Pp.(str "Cannot handle general patterns in Scheme yet.")
+    | MLcase (_,t,pv) when is_custom_match pv -> (* TODO *)
+        let mkfun (ids,_,e) =
+          if not (List.is_empty ids) then named_lams (List.rev ids) e
+          else dummy_lams (ast_lift 1 e) 1
+        in
+        apply
+          (paren
+             (hov 2
+                (str (find_custom_match pv) ++ fnl () ++
+                 prvect (fun tr -> pp_expr table env [] (mkfun tr) ++ fnl ()) pv
+                 ++ pp_expr table env [] t)))
+    | MLcase (typ,t, pv) -> (* TODO *)
+        let e =
+          if not (is_coinductive_type (State.get_table table) typ) then pp_expr table env [] t
+          else paren (str "force" ++ spc () ++ pp_expr table env [] t)
+        in
+        apply (v 3 (paren (str "switch ... case ... " ++ e ++ fnl () ++ pp_pat table env pv)))
     | _ -> str "__"
 
+  (* TODO : from Scheme.ml *)
+and pp_one_pat table env (ids,p,t) =
+  let r = match p with
+    | Pusual r -> r
+    | Pcons (r,l) -> r (* cf. the check [is_regular_match] above *)
+    | _ -> assert false
+  in
+  let ids,env' = push_vars (List.rev_map id_of_mlid ids) env in
+  let args =
+    if List.is_empty ids then mt ()
+    else (str " " ++ prlist_with_sep spc pr_id (List.rev ids))
+  in
+  (pp_global table Cons r ++ args), (pp_expr table env' [] t)
+
+and pp_pat table env pv =
+  prvect_with_sep fnl
+    (fun x -> let s1,s2 = pp_one_pat table env x in
+     hov 2 (str "((" ++ s1 ++ str ")" ++ spc () ++ s2 ++ str ")")) pv
+     
 (* TODO : almost all definitions below are from Scheme.ml *)
 let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
