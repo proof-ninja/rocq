@@ -118,7 +118,7 @@ let rec pp_expr table env args =
     | MLparray _ ->
             paren (str "Prelude.error \"EXTRACTION OF PARRAY NOT IMPLEMENTED\"")
 
-  (* TODO : from Scheme.ml *)
+  (* TODO : from Scheme.ml etc. *)
 and pp_one_pat table env (ids,p,t) =
   let r = match p with
     | Pusual r -> r
@@ -137,16 +137,15 @@ and pp_pat table env pv =
     (fun x -> let s1,s2 = pp_one_pat table env x in
      hov 2 (str "((" ++ s1 ++ str ")" ++ spc () ++ s2 ++ str ")")) pv
 
-and pp_fix table env j (ids,bl) args =
-    paren
-      (str "letrec " ++
-       (v 0 (paren
-               (prvect_with_sep fnl
-                  (fun (fi,ti) ->
-                     paren ((pr_id fi) ++ spc () ++ (pp_expr table env [] ti)))
-                  (Array.map2 (fun id b -> (id,b)) ids bl)) ++
-             fnl () ++
-             hov 2 (pp_apply3 (pr_id (ids.(j))) true args))))
+and pp_fix table env i (ids,bl) args =
+  paren
+    (v 0 (str "let rec " ++
+          prvect_with_sep
+            (fun () -> fnl () ++ str "and ")
+            (fun (fi,ti) -> Id.print fi (* ++ pp_function table env ti *))
+            (Array.map2 (fun id b -> (id,b)) ids bl) ++
+          fnl () ++
+          hov 2 (str "in " ++ pp_apply (Id.print ids.(i)) false args)))
      
 (* TODO : almost all definitions below are from Scheme.ml *)
 let pp_global table k r =
