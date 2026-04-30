@@ -98,7 +98,25 @@ let rec pp_expr table env args =
           else paren (str "force" ++ spc () ++ pp_expr table env [] t)
         in
         apply (v 3 (paren (str "switch ... case ... " ++ e ++ fnl () ++ pp_pat table env pv)))
-    | _ -> str "__"
+    | MLfix (i,ids,defs) -> (* TODO *)
+        let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
+        pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
+    | MLexn s ->
+        (* An [MLexn] may be applied, but I don't really care. *)
+        paren (str "error" ++ spc () ++ qs s)
+    | MLdummy _ ->
+        str "__" (* An [MLdummy] may be applied, but I don't really care. *)
+    | MLmagic a ->
+        pp_expr table env args a
+    | MLaxiom s -> paren (str "error \"AXIOM TO BE REALIZED (" ++ str s ++ str ")\"")
+    | MLuint _ ->
+      paren (str "Prelude.error \"EXTRACTION OF UINT NOT IMPLEMENTED\"")
+    | MLfloat _ ->
+      paren (str "Prelude.error \"EXTRACTION OF FLOAT NOT IMPLEMENTED\"")
+    | MLstring _ ->
+      paren (str "Prelude.error \"EXTRACTION OF STRING NOT IMPLEMENTED\"")
+    | MLparray _ ->
+            paren (str "Prelude.error \"EXTRACTION OF PARRAY NOT IMPLEMENTED\"")
 
   (* TODO : from Scheme.ml *)
 and pp_one_pat table env (ids,p,t) =
@@ -118,6 +136,17 @@ and pp_pat table env pv =
   prvect_with_sep fnl
     (fun x -> let s1,s2 = pp_one_pat table env x in
      hov 2 (str "((" ++ s1 ++ str ")" ++ spc () ++ s2 ++ str ")")) pv
+
+and pp_fix table env j (ids,bl) args =
+    paren
+      (str "letrec " ++
+       (v 0 (paren
+               (prvect_with_sep fnl
+                  (fun (fi,ti) ->
+                     paren ((pr_id fi) ++ spc () ++ (pp_expr table env [] ti)))
+                  (Array.map2 (fun id b -> (id,b)) ids bl)) ++
+             fnl () ++
+             hov 2 (pp_apply3 (pr_id (ids.(j))) true args))))
      
 (* TODO : almost all definitions below are from Scheme.ml *)
 let pp_global table k r =
