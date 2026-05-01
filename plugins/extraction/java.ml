@@ -41,10 +41,31 @@ let pp_global table k r =
 let pr_id id =
   str @@ String.map (fun c -> if c == '\'' then '$' else c) (Id.to_string id)
 
-let rec pp_abst st = function
+let pp_tvar id = str ("'" ^ Id.to_string id) (* TODO: can we use this in Java? *)
+
+let pp_type table par vl t =
+  let rec pp_rec par = function
+    | Tmeta _ | Tvar' _ | Taxiom -> assert false
+    | Tvar i -> (try pp_tvar (List.nth vl (pred i))
+                 with Failure _ -> (str "'a" ++ int i))
+    | Tglob (r,[]) -> pp_global table Type r
+    | Tglob (gr,l)
+        when not (keep_singleton ()) && Rocqlib.check_ref sig_type_name gr.glob ->
+        pp_tuple_light pp_rec l
+    | Tglob (r,l) ->
+        pp_tuple_light pp_rec l ++ spc () ++ pp_global table Type r
+    | Tarr (t1,t2) ->
+        pp_par par
+          (pp_rec true t1 ++ spc () ++ str "->" ++ spc () ++ pp_rec false t2)
+    | Tdummy _ -> str "__"
+    | Tunknown -> str "__"
+  in
+  hov 0 (pp_rec par t)
+
+let pp_abst st idlist = match idlist with
   | [] -> assert false
-  | [id] -> paren (pr_id id ++ str " -> " ++ spc () ++ st)
-  | h::t -> paren (pr_id h ++ str " -> " ++ spc () ++ pp_abst st t)
+  | _ -> paren (prlist_with_sep (fun _ -> str ", ") pr_id idlist) ++ str " { \n" 
+    ++ spc () ++ str "return " ++ st ++ str "; \n }"
 
 let pp_letin pat def body =
   let fstline = pat ++ str " =" ++ spc () ++ def ++ str ";" in
@@ -173,10 +194,10 @@ let pp_decl table = function
                          else pp_expr table (empty_env table ()) [] defs.(i))
                ++ fnl ()) ++ fnl ())
         rv
-  | Dterm (r, a, _) ->
+  | Dterm (r, a, t) ->
       if is_inline_custom r then mt ()
       else
-        hov 2 (pp_global table Term r ++ spc () ++
+        hov 2 (pp_type table false [] t ++ spc() ++ pp_global table Term r ++ spc () ++
                         (if is_custom r then str (find_custom r)
                          else pp_expr table (empty_env table ()) [] a))
         ++ fnl2 ()
