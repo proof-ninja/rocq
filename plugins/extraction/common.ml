@@ -43,11 +43,6 @@ let pp_apply2 st par args =
   let par' = not (List.is_empty args) || par in
   pp_apply (pp_par par' st) par args
 
-(* for Java? *)
-let pp_apply3 st par args = match args with
-  | [] -> st
-  | _  -> hov 2 (pp_par par (st ++ pp_par par (prlist_with_sep (fun _ -> str ", ") identity args)))
-
 let pr_binding = function
   | [] -> mt ()
   | l  -> str " " ++ prlist_with_sep (fun () -> str " ") Id.print l

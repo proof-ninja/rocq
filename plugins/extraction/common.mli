@@ -28,9 +28,6 @@ val pp_apply : Pp.t -> bool -> Pp.t list -> Pp.t
 (** Same as [pp_apply], but with also protection of the head by parenthesis *)
 val pp_apply2 : Pp.t -> bool -> Pp.t list -> Pp.t
 
-(** Same as [pp_apply], but with separator commas and parenthesis *)
-val pp_apply3 : Pp.t -> bool -> Pp.t list -> Pp.t
-
 val pp_tuple_light : (bool -> 'a -> Pp.t) -> 'a list -> Pp.t
 val pp_tuple : ('a -> Pp.t) -> 'a list -> Pp.t
 val pp_array : ('a -> Pp.t) -> 'a list -> Pp.t
