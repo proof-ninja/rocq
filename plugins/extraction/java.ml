@@ -109,7 +109,7 @@ let rec pp_expr table env =
         (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
         (* let st = *)
-          paren (pp_global table Cons r ++
+          paren (str "Constructor" ++ pp_global table Cons r ++
                  paren (prlist_with_sep comma (pp_expr table env) args'))
         (* in
         if is_coinductive (State.get_table table) r then paren (str "delay " ++ st) else st *)
@@ -142,9 +142,29 @@ let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
   else str (Common.pp_global table k r)
 
+let pp_mind table i = (* TODO *)
+  match i.ind_kind with
+    | Singleton -> str "single"
+    | Coinductive -> str "coind"
+    | Record _ -> str "record"
+    | Standard -> str "standard"
+    (* 
+    OCaml : 
+    type expr =
+  | Int of int
+  | Add of expr * expr
+  
+    Java :
+  sealed interface Expr
+    permits IntExpr, AddExpr {}
+  record IntExpr(int value)
+      implements Expr {}
+  record AddExpr(Expr l, Expr r)
+      implements Expr {} *)
+
 let rec pp_decl table = function
-  | Dind _ -> mt ()
-  | Dtype _ -> mt ()
+  | Dind i -> pp_mind table i
+  | Dtype _ -> str "type" (* TODO *)
   | Dfix (rv, defs,ty) -> 
     let terms = (Array.map3 (fun x y z -> Dterm (x, y, z)) rv defs ty) in 
     Array.fold_left (fun s term -> s ++ pp_decl table term ++ str "\n") (str "") terms
