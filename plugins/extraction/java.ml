@@ -79,11 +79,11 @@ let pp_apply st args =
 
 let pp_abst st idlist = match idlist with
   | [] -> assert false
-  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> { \n" 
+  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> { " 
     ++ spc () ++ str "return " ++ st ++ str "; \n }"
 
 let pp_letin pat def body =
-  let fstline = pat ++ str " =" ++ spc () ++ def ++ str ";" in
+  let fstline = pat ++ str " = " ++ def ++ str ";" in
   hv 0 (hv 0 (hov 2 fstline ++ spc () ++ fnl ()) ++ spc () ++ hov 0 body)
   
 
@@ -109,20 +109,19 @@ let rec pp_expr table env =
         (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
         (* let st = *)
-          paren (str "Constructor" ++ pp_global table Cons r ++
-                 paren (prlist_with_sep comma (pp_expr table env) args'))
+          pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env) args')
         (* in
         if is_coinductive (State.get_table table) r then paren (str "delay " ++ st) else st *)
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
     | MLcase (_,_,pv) when not (is_regular_match pv) ->
-        user_err Pp.(str "Cannot handle general patterns in Scheme yet.")
+        user_err Pp.(str "Cannot handle general patterns in Java yet.")
     | MLcase (typ,t, pv) -> (* TODO *)
         str "switch ... case ... " 
     | MLfix (i,ids,defs) -> (* TODO *)
         str "fixpoint" 
     | MLexn s ->
         (* An [MLexn] may be applied, but I don't really care. *)
-        paren (str "error" ++ spc () ++ qs s)
+        paren (str "error " ++ qs s)
     | MLdummy _ ->
         str "__" (* An [MLdummy] may be applied, but I don't really care. *)
     | MLmagic a ->
@@ -137,17 +136,115 @@ let rec pp_expr table env =
     | MLparray _ ->
             paren (str "Prelude.error \"EXTRACTION OF PARRAY NOT IMPLEMENTED\"")
 
+(* TODO : almost all of definitions below are from ocaml.ml *)
+let str_global_with_key table k key r =
+  if is_inline_custom r then find_custom r else Common.pp_global_with_key table k key r
 
-let pp_global table k r =
-  if is_inline_custom r then str (find_custom r)
-  else str (Common.pp_global table k r)
+let str_global table k r = str_global_with_key table k (repr_of_r r) r
+
+let pp_global_with_key table k key r = str (str_global_with_key table k key r)
+
+let pp_global table k r = str (str_global table k r)
+
+let pp_global_name table k r = str (Common.pp_global table k r)
+
+let pp_parameters l =
+  (pp_boxed_tuple pp_tvar l ++ space_if (not (List.is_empty l)))
+
+let kn_of_ind r = let open GlobRef in match r.glob with
+  | IndRef (kn,_) -> MutInd.user kn
+  | _ -> assert false
+
+let get_ind r = let open GlobRef in match r.glob with
+  | IndRef _ -> r
+  | ConstructRef (ind,_) -> { glob = IndRef ind; inst = r.inst }
+  | _ -> assert false
+
+let pp_one_field table r i = function
+  | Some r' -> pp_global_with_key table Term (kn_of_ind (get_ind r)) r'
+  | None -> pp_global table Type (get_ind r) ++ str "__" ++ int i
+
+let pp_fields table r fields = List.map_i (pp_one_field table r) 0 fields
+
+let pp_equiv table param_list name inst = function
+  | NoEquiv, _ -> mt ()
+  | Equiv kn, i ->
+    let r = { glob = GlobRef.IndRef (MutInd.make1 kn, i); inst } in
+    str " = " ++ pp_parameters param_list ++ pp_global table Type r
+  | RenEquiv ren, _  ->
+      str " = " ++ pp_parameters param_list ++ str (ren^".") ++ name
+
+(* class with one constructor *)
+let pp_singleton table packet =
+  let name = pp_global_name table Type packet.ip_typename_ref in
+  let l = rename_tvars keywords packet.ip_vars in
+  str "record " ++ pp_parameters l ++ name ++ str " " ++
+        paren (pp_type table l (List.hd packet.ip_types.(0)) ++ str " " ++ Id.print packet.ip_consnames.(0))
+        ++ str " {} "
+
+(* class with two or more constructors *)
+let pp_record table fields ip_equiv packet =
+  let ind = packet.ip_typename_ref in
+  let name = pp_global_name table Type ind in
+  let fieldnames = pp_fields table ind fields in
+  let l = List.combine fieldnames packet.ip_types.(0) in
+  let pl = rename_tvars keywords packet.ip_vars in
+  str "record " ++ pp_parameters pl ++ name ++
+  paren (prlist_with_sep (fun () -> str ", ")
+           (fun (p,t) -> pp_type table pl t ++ str " " ++ p) l) ++
+  pp_equiv table pl name ind.inst ip_equiv ++ str " {} "
+
+(* one [Inductive a := ... .] *)
+let pp_one_ind table inst ip_equiv pl name cnames ctyps =
+  let pl = rename_tvars keywords pl in
+  let pp_constructor i typs =
+    fnl () ++
+    str "record " ++ cnames.(i) 
+    ++ paren (prlist_with_sep (fun () -> str ", ") (fun ty -> pp_type table pl ty ++ str " value") typs)
+    ++ str " implements " ++ name ++ str " {} "
+  in 
+  pp_parameters pl ++ name ++
+  pp_equiv table pl name inst ip_equiv ++ str " permits " 
+  ++ prvect_with_sep (fun () -> str ", ") identity cnames ++ str " {}" ++ fnl() 
+  ++ v 0 (prvecti pp_constructor ctyps)
+
+(* [Inductive] may be mutual recursive *)
+let pp_ind table ind =
+  let initkwd = str "sealed interface " in
+  let names =
+    Array.mapi (fun i p -> if p.ip_logical then mt () else
+                  pp_global_name table Type p.ip_typename_ref)
+      ind.ind_packets
+  in
+  let cnames =
+    Array.mapi
+      (fun i p -> if p.ip_logical then [||] else
+         Array.mapi (fun j _ -> pp_global table Cons p.ip_consnames_ref.(j))
+           p.ip_types)
+      ind.ind_packets
+  in
+  let rec pp i =
+    if i >= Array.length ind.ind_packets then mt ()
+    else
+      let ip = ind.ind_packets.(i).ip_typename_ref in
+      let ip_equiv = ind.ind_equiv, i in
+      let p = ind.ind_packets.(i) in
+      if is_custom ip then pp (i+1)
+      else if p.ip_logical then pp_comment (str "logical inductive") ++ fnl()
+      else (* essential *)
+        let inst = p.ip_typename_ref.inst in
+        initkwd ++ 
+        pp_one_ind table inst ip_equiv p.ip_vars names.(i) cnames.(i) p.ip_types ++
+        pp (i+1)
+  in
+  pp 0
 
 let pp_mind table i = (* TODO *)
   match i.ind_kind with
-    | Singleton -> str "single"
-    | Coinductive -> str "coind"
-    | Record _ -> str "record"
-    | Standard -> str "standard"
+    | Singleton -> (* Record or Class with one element *) pp_singleton table i.ind_packets.(0)
+    | Coinductive -> paren (str "extraction of coinductive definition is not implemented")
+    | Record fields -> (* Record or Class with two or more elements *) pp_record table fields (i.ind_equiv,0) i.ind_packets.(0)
+    | Standard -> pp_ind table i
     (* 
     OCaml : 
     type expr =
