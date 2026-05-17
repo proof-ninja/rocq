@@ -178,7 +178,7 @@ let pp_equiv table param_list name inst = function
 let pp_singleton table packet =
   let name = pp_global_name table Type packet.ip_typename_ref in
   let l = rename_tvars keywords packet.ip_vars in
-  str "record " ++ pp_parameters l ++ name ++ str " " ++
+  str "class " ++ pp_parameters l ++ name ++ str " " ++
         paren (pp_type table l (List.hd packet.ip_types.(0)) ++ str " " ++ Id.print packet.ip_consnames.(0))
         ++ str " {} "
 
@@ -189,7 +189,7 @@ let pp_record table fields ip_equiv packet =
   let fieldnames = pp_fields table ind fields in
   let l = List.combine fieldnames packet.ip_types.(0) in
   let pl = rename_tvars keywords packet.ip_vars in
-  str "record " ++ pp_parameters pl ++ name ++
+  str "class " ++ pp_parameters pl ++ name ++
   paren (prlist_with_sep (fun () -> str ", ")
            (fun (p,t) -> pp_type table pl t ++ str " " ++ p) l) ++
   pp_equiv table pl name ind.inst ip_equiv ++ str " {} "
@@ -199,18 +199,17 @@ let pp_one_ind table inst ip_equiv pl name cnames ctyps =
   let pl = rename_tvars keywords pl in
   let pp_constructor i typs =
     fnl () ++
-    str "record " ++ cnames.(i) 
+    str "class " ++ cnames.(i) 
     ++ paren (prlist_with_sep (fun () -> str ", ") (fun ty -> pp_type table pl ty ++ str " value") typs)
     ++ str " implements " ++ name ++ str " {} "
   in 
   pp_parameters pl ++ name ++
-  pp_equiv table pl name inst ip_equiv ++ str " permits " 
-  ++ prvect_with_sep (fun () -> str ", ") identity cnames ++ str " {}" ++ fnl() 
+  pp_equiv table pl name inst ip_equiv ++ str " {}" ++ fnl() 
   ++ v 0 (prvecti pp_constructor ctyps)
 
 (* [Inductive] may be mutual recursive *)
 let pp_ind table ind =
-  let initkwd = str "sealed interface " in
+  let initkwd = str "interface " in
   let names =
     Array.mapi (fun i p -> if p.ip_logical then mt () else
                   pp_global_name table Type p.ip_typename_ref)
@@ -239,25 +238,13 @@ let pp_ind table ind =
   in
   pp 0
 
-let pp_mind table i = (* TODO *)
+let pp_mind table i =
   match i.ind_kind with
     | Singleton -> (* Record or Class with one element *) pp_singleton table i.ind_packets.(0)
     | Coinductive -> paren (str "extraction of coinductive definition is not implemented")
     | Record fields -> (* Record or Class with two or more elements *) pp_record table fields (i.ind_equiv,0) i.ind_packets.(0)
     | Standard -> pp_ind table i
-    (* 
-    OCaml : 
-    type expr =
-  | Int of int
-  | Add of expr * expr
-  
-    Java :
-  sealed interface Expr
-    permits IntExpr, AddExpr {}
-  record IntExpr(int value)
-      implements Expr {}
-  record AddExpr(Expr l, Expr r)
-      implements Expr {} *)
+
 
 let rec pp_decl table = function
   | Dind i -> pp_mind table i
