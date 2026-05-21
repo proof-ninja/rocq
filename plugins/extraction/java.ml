@@ -70,7 +70,7 @@ let pp_type table vl t =
   in
   hov 0 (pp_rec t)
 
-let pp_apply st args = 
+let pp_app st args = 
   let rec pp_rec args = match args with
     | [] -> str ""
     | h::t  -> str ".apply" ++ paren h ++ pp_rec t 
@@ -87,29 +87,30 @@ let pp_letin pat def body =
   hv 0 (hv 0 (hov 2 fstline ++ spc () ++ fnl ()) ++ spc () ++ hov 0 body)
   
 
-let rec pp_expr table env =
+let rec pp_expr table env args =
+  let apply st = pp_app st args in
   function
     | MLrel n ->
-        let id = get_db_name n env in (Id.print id)
+        let id = get_db_name n env in apply (Id.print id)
     | MLapp (f,args') ->
-        let stl = List.map (pp_expr table env) args' in
-        let func = pp_expr table env f in
-        pp_apply func stl
+        let stl = List.map (pp_expr table env []) args' in
+        pp_expr table env (stl @ args) f
     | MLlam _ as a ->
         let fl,a' = collect_lams a in (* [fl] : arguments, [a'] : body *)
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
-        (pp_abst (pp_expr table env' a') (List.rev fl))
+        apply (pp_abst (pp_expr table env' [] a') (List.rev fl))
     | MLletin (id,a1,a2) ->
         let i,env' = push_vars [id_of_mlid id] env in
         let pp_id = Id.print (List.hd i)
-        and pp_a1 = pp_expr table env a1
-        and pp_a2 = pp_expr table env' a2 in
-        hv 0 (pp_letin pp_id pp_a1 pp_a2)
+        and pp_a1 = pp_expr table env [] a1
+        and pp_a2 = pp_expr table env' [] a2 in
+        hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
     | MLglob r ->
-        (pp_global table Term r)
+        apply (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
+        assert (List.is_empty args);
         (* let st = *)
-          pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env) args')
+          pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
         (* in
         if is_coinductive (State.get_table table) r then paren (str "delay " ++ st) else st *)
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
@@ -125,7 +126,7 @@ let rec pp_expr table env =
     | MLdummy _ ->
         str "__" (* An [MLdummy] may be applied, but I don't really care. *)
     | MLmagic a ->
-        pp_expr table env a
+        pp_expr table env [] a
     | MLaxiom s -> paren (str "error \"AXIOM TO BE REALIZED (" ++ str s ++ str ")\"")
     | MLuint _ ->
       paren (str "Prelude.error \"EXTRACTION OF UINT NOT IMPLEMENTED\"")
@@ -257,7 +258,7 @@ let rec pp_decl table = function
       else
         hov 2 (pp_type table [] t ++ spc() ++ pp_global table Term r ++ str " = " ++
                         (if is_custom r then str (find_custom r)
-                         else pp_expr table (empty_env table ()) a))
+                         else pp_expr table (empty_env table ()) [] a))
         ++ fnl2 ()
 
 
