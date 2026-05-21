@@ -80,7 +80,7 @@ let pp_app st args =
 let pp_abst st idlist = match idlist with
   | [] -> assert false
   | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> { " 
-    ++ spc () ++ str "return " ++ st ++ str "; \n }"
+    ++ spc () ++ str "return " ++ st ++ str ";" ++ fnl() ++ str "}"
 
 let pp_letin pat def body =
   let fstline = pat ++ str " = " ++ def ++ str ";" in
@@ -119,7 +119,8 @@ let rec pp_expr table env args =
     | MLcase (typ,t, pv) -> (* TODO *)
         str "switch ... case ... " 
     | MLfix (i,ids,defs) -> (* TODO *)
-        str "fixpoint" 
+        let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
+        pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
     | MLexn s ->
         (* An [MLexn] may be applied, but I don't really care. *)
         paren (str "error " ++ qs s)
@@ -136,6 +137,14 @@ let rec pp_expr table env args =
       paren (str "Prelude.error \"EXTRACTION OF STRING NOT IMPLEMENTED\"")
     | MLparray _ ->
             paren (str "Prelude.error \"EXTRACTION OF PARRAY NOT IMPLEMENTED\"")
+
+and pp_fix table env i (ids,bl) args =
+      prvect_with_sep
+        (fun () -> str ";" ++ fnl() ++ str "auto ")
+        (fun (fi,ti) -> Id.print fi ++ pp_expr table env [] ti)
+        (Array.map2 (fun id b -> (id,b)) ids bl) ++
+      fnl () ++
+      hov 2 (str ";" ++ fnl() ++ pp_app (Id.print ids.(i)) args)
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
 let str_global_with_key table k key r =
