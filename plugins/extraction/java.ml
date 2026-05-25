@@ -77,14 +77,16 @@ let pp_app st args =
   in
   st ++ pp_rec args
 
-let pp_abst st idlist = match idlist with
+let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x -> e)" *)
   | [] -> assert false
   | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> { " 
     ++ spc () ++ str "return " ++ st ++ str ";" ++ fnl() ++ str "}"
 
-let pp_letin pat def body =
-  let fstline = pat ++ str " = " ++ def ++ str ";" in
-  hv 0 (hv 0 (hov 2 fstline ++ spc () ++ fnl ()) ++ spc () ++ hov 0 body)
+let pp_letin pat def body = (* ((Supplier<T2>) (() -> { T1 x = e1; return e2; })).get() *)
+  paren ((paren (str "Supplier<T2>")) ++ paren (str "() -> {" ++ fnl()
+    ++ str "T1" ++ pat ++ str " = " ++ def ++ str ";" ++ fnl()
+    ++ str "return " ++ body ++ str ";" ++ fnl()
+    ++ str "}")) ++ str ".get()"
   
 
 let rec pp_expr table env args =
@@ -109,15 +111,12 @@ let rec pp_expr table env args =
         apply (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
         assert (List.is_empty args);
-        (* let st = *)
-          pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
-        (* in
-        if is_coinductive (State.get_table table) r then paren (str "delay " ++ st) else st *)
+        (* str "new " ++ *) pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
     | MLcase (_,_,pv) when not (is_regular_match pv) ->
         user_err Pp.(str "Cannot handle general patterns in Java yet.")
     | MLcase (typ,t, pv) -> (* TODO *)
-        str "switch ... case ... " 
+        str "(t instanceof A) ? ... : ... " 
     | MLfix (i,ids,defs) -> (* TODO *)
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
