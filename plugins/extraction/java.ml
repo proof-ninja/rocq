@@ -183,13 +183,28 @@ let pp_equiv table param_list name inst = function
   | RenEquiv ren, _  ->
       str " = " ++ pp_parameters param_list ++ str (ren^".") ++ name
 
+let pp_instance_var t name = str "private final " ++ t ++ str " " ++ name ++ str ";" ++ fnl()
+let pp_java_constructor classname ty_name_list = 
+  classname ++ paren (prlist_with_sep (fun () -> str ", ") (fun (t, name) -> t ++ str " " ++ name) ty_name_list) ++ str " {" ++ fnl() ++
+      prlist_strict (fun (_, name) -> str "this." ++ name ++ str " = " ++ name ++ str ";" ++ fnl()) ty_name_list
+    ++ str "}" ++ fnl()
+
+let pp_getter ty name = 
+  ty ++ str " " ++ name ++ str "() {" ++ fnl() ++
+      str "return " ++ name ++ str ";" ++ fnl() ++
+    str "}" ++ fnl()
+
 (* class with one constructor *)
 let pp_singleton table packet =
   let name = pp_global_name table Type packet.ip_typename_ref in
   let l = rename_tvars keywords packet.ip_vars in
-  str "class " ++ pp_parameters l ++ name ++ str " " ++
-        paren (pp_type table l (List.hd packet.ip_types.(0)) ++ str " " ++ Id.print packet.ip_consnames.(0))
-        ++ str " {} "
+  let fieldname = Id.print packet.ip_consnames.(0) in
+  let ty = pp_type table l (List.hd packet.ip_types.(0)) in
+  str "class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
+    pp_instance_var ty fieldname ++ fnl() ++
+    pp_java_constructor name [(ty, fieldname)] ++ fnl() ++
+    pp_getter ty fieldname
+    ++ str "}"
 
 (* class with two or more constructors *)
 let pp_record table fields ip_equiv packet =
@@ -198,19 +213,24 @@ let pp_record table fields ip_equiv packet =
   let fieldnames = pp_fields table ind fields in
   let l = List.combine fieldnames packet.ip_types.(0) in
   let pl = rename_tvars keywords packet.ip_vars in
-  str "class " ++ pp_parameters pl ++ name ++
-  paren (prlist_with_sep (fun () -> str ", ")
-           (fun (p,t) -> pp_type table pl t ++ str " " ++ p) l) ++
-  pp_equiv table pl name ind.inst ip_equiv ++ str " {} "
+  str "class " ++ pp_parameters pl ++ name ++ str " {" ++ fnl() ++
+    prlist_strict (fun (p,t) -> pp_instance_var (pp_type table pl t) p) l ++ fnl() ++
+    (* pp_equiv table pl name ind.inst ip_equiv ++ *)
+    pp_java_constructor name (List.map (fun (p, t) -> (pp_type table pl t, p)) l) ++ fnl() ++
+    prlist_strict (fun (p,t) -> pp_getter (pp_type table pl t) p) l ++
+  str " } "
 
 (* one [Inductive a := ... .] *)
 let pp_one_ind table inst ip_equiv pl name cnames ctyps =
   let pl = rename_tvars keywords pl in
   let pp_constructor i typs =
     fnl () ++
-    str "class " ++ cnames.(i) 
-    ++ paren (prlist_with_sep (fun () -> str ", ") (fun ty -> pp_type table pl ty ++ str " value") typs)
-    ++ str " implements " ++ name ++ str " {} "
+    str "class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
+    (* "value" is dummy, must be changed *)
+      prlist_strict (fun t -> pp_instance_var (pp_type table pl t) (str "value")) typs ++ fnl() ++
+      pp_java_constructor cnames.(i) (List.map (fun t -> (pp_type table pl t, str "value")) typs) ++ fnl() ++
+      prlist_strict (fun t -> pp_getter (pp_type table pl t) (str "value")) typs ++
+    str "}"
   in 
   pp_parameters pl ++ name ++
   pp_equiv table pl name inst ip_equiv ++ str " {}" ++ fnl() 
