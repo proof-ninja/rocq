@@ -87,7 +87,18 @@ let pp_letin pat def body = (* ((Supplier<T2>) (() -> { T1 x = e1; return e2; })
     ++ str "T1" ++ pat ++ str " = " ++ def ++ str ";" ++ fnl()
     ++ str "return " ++ body ++ str ";" ++ fnl()
     ++ str "}")) ++ str ".get()"
-  
+
+let pp_ids_pat table ids env = function
+  | Pwild -> str "_"
+  | Prel n -> Id.print (get_db_name n env)
+  | _ -> assert false
+
+let pp_gen_pat table ids env = function
+  | Pcons (r, l) -> pp_global table Cons r, (List.map (pp_ids_pat table ids env) l)
+  | Pusual r -> pp_global table Cons r, (List.map Id.print ids)
+  | Ptuple l -> str "not implemented pattern...", []
+  | Pwild -> str "_", []
+  | Prel n -> Id.print (get_db_name n env), []    
 
 let rec pp_expr table env args =
   let apply st = pp_app st args in
@@ -113,11 +124,9 @@ let rec pp_expr table env args =
         assert (List.is_empty args);
         (* str "new " ++ *) pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
-    | MLcase (_,_,pv) when not (is_regular_match pv) ->
-        user_err Pp.(str "Cannot handle general patterns in Java yet.")
-    | MLcase (typ,t, pv) -> (* TODO *)
-        str "(t instanceof A) ? ... : ... " 
-    | MLfix (i,ids,defs) -> (* TODO *)
+    | MLcase (_,t, pv) -> 
+          pp_pat table env (pp_expr table env [] t) pv
+    | MLfix (i,ids,defs) -> 
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
     | MLexn s ->
@@ -144,6 +153,23 @@ and pp_fix table env i (ids,bl) args =
         (Array.map2 (fun id b -> (id,b)) ids bl) ++
       fnl () ++
       hov 2 (str ";" ++ fnl() ++ pp_app (Id.print ids.(i)) args)
+
+and pp_one_pat table env (ids,p,t) =
+  let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
+  pp_gen_pat table (List.rev ids') env' p,
+  pp_expr table env' [] t
+
+and pp_pat table env exp pv = (* TODO *)
+  prvecti
+    (fun i x ->
+      let s1,s2 = pp_one_pat table env x in
+      hv 2 (hov 4 (paren (exp ++ str " instanceof " ++ fst s1) ++ str " ? " ++ str "{" ++ fnl() ++
+        fst s1 ++ str " " ++ fst s1 ++ str " = " ++ paren (fst s1) ++ exp ++ str ";" ++ fnl() ++
+        str "cast..." ++
+        str "return " ++ s2)) ++ fnl() ++
+      str "}" ++
+       if Int.equal i (Array.length pv - 1) then mt() else fnl() ++ str ": ")
+    pv
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
 let str_global_with_key table k key r =
