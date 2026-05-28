@@ -37,11 +37,12 @@ let preamble _ _ comment _ _ =
   pp_header_comment comment 
   (* ++ import java.util.function.Function; *)
   (* ++ dummy *)
-  ++ str "public class Main "
-  (* ++ str "public static void main (String[] args) " *)
+  ++ str "public class Main {" ++ fnl() ++ fnl()
+  (* forget last "}" *)
 
 let comma = fun _ -> str ", "
 let paren = pp_par true
+
 
 let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
@@ -79,12 +80,12 @@ let pp_app st args =
 
 let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x -> e)" *)
   | [] -> assert false
-  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> { " 
-    ++ spc () ++ str "return " ++ st ++ str ";" ++ fnl() ++ str "}"
+  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> " 
+    ++ spc () ++ st ++ fnl()
 
 let pp_letin pat def body = (* ((Supplier<T2>) (() -> { T1 x = e1; return e2; })).get() *)
-  paren ((paren (str "Supplier<T2>")) ++ paren (str "() -> {" ++ fnl()
-    ++ str "T1" ++ pat ++ str " = " ++ def ++ str ";" ++ fnl()
+  paren ((paren (str "Supplier<Object>")) ++ paren (str "() -> {" ++ fnl()
+    ++ str "Object" ++ pat ++ str " = " ++ def ++ str ";" ++ fnl()
     ++ str "return " ++ body ++ str ";" ++ fnl()
     ++ str "}")) ++ str ".get()"
 
@@ -148,7 +149,7 @@ let rec pp_expr table env args =
 
 and pp_fix table env i (ids,bl) args =
       prvect_with_sep
-        (fun () -> str ";" ++ fnl() ++ str "auto ")
+        (fun () -> str ";" ++ fnl() ++ str "var ")
         (fun (fi,ti) -> Id.print fi ++ pp_expr table env [] ti)
         (Array.map2 (fun id b -> (id,b)) ids bl) ++
       fnl () ++
@@ -162,12 +163,8 @@ and pp_one_pat table env (ids,p,t) =
 and pp_pat table env exp pv = (* TODO *)
   prvecti
     (fun i x ->
-      let s1,s2 = pp_one_pat table env x in
-      hv 2 (hov 4 (paren (exp ++ str " instanceof " ++ fst s1) ++ str " ? " ++ str "{" ++ fnl() ++
-        fst s1 ++ str " " ++ fst s1 ++ str " = " ++ paren (fst s1) ++ exp ++ str ";" ++ fnl() ++
-        str "cast..." ++
-        str "return " ++ s2)) ++ fnl() ++
-      str "}" ++
+      let (constr, instance), body = pp_one_pat table env x in
+      hv 2 (hov 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body)) ++ fnl() ++
        if Int.equal i (Array.length pv - 1) then mt() else fnl() ++ str ": ")
     pv
 
@@ -209,16 +206,12 @@ let pp_equiv table param_list name inst = function
   | RenEquiv ren, _  ->
       str " = " ++ pp_parameters param_list ++ str (ren^".") ++ name
 
-let pp_instance_var t name = str "private final " ++ t ++ str " " ++ name ++ str ";" ++ fnl()
+let pp_instance_var t name = str "final " ++ t ++ str " " ++ name ++ str ";" ++ fnl()
 let pp_java_constructor classname ty_name_list = 
   classname ++ paren (prlist_with_sep (fun () -> str ", ") (fun (t, name) -> t ++ str " " ++ name) ty_name_list) ++ str " {" ++ fnl() ++
-      prlist_strict (fun (_, name) -> str "this." ++ name ++ str " = " ++ name ++ str ";" ++ fnl()) ty_name_list
+      hv 2 (prlist_strict (fun (_, name) -> str "this." ++ name ++ str " = " ++ name ++ str ";" ++ fnl()) ty_name_list)
     ++ str "}" ++ fnl()
 
-let pp_getter ty name = 
-  ty ++ str " " ++ name ++ str "() {" ++ fnl() ++
-      str "return " ++ name ++ str ";" ++ fnl() ++
-    str "}" ++ fnl()
 
 (* class with one constructor *)
 let pp_singleton table packet =
@@ -226,11 +219,10 @@ let pp_singleton table packet =
   let l = rename_tvars keywords packet.ip_vars in
   let fieldname = Id.print packet.ip_consnames.(0) in
   let ty = pp_type table l (List.hd packet.ip_types.(0)) in
-  str "class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
+  str "public class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
     pp_instance_var ty fieldname ++ fnl() ++
-    pp_java_constructor name [(ty, fieldname)] ++ fnl() ++
-    pp_getter ty fieldname
-    ++ str "}"
+    pp_java_constructor name [(ty, fieldname)] ++ fnl() 
+    ++ str "}" ++ fnl()
 
 (* class with two or more constructors *)
 let pp_record table fields ip_equiv packet =
@@ -239,24 +231,23 @@ let pp_record table fields ip_equiv packet =
   let fieldnames = pp_fields table ind fields in
   let l = List.combine fieldnames packet.ip_types.(0) in
   let pl = rename_tvars keywords packet.ip_vars in
-  str "class " ++ pp_parameters pl ++ name ++ str " {" ++ fnl() ++
+  str "public class " ++ pp_parameters pl ++ name ++ str " {" ++ fnl() ++
     prlist_strict (fun (p,t) -> pp_instance_var (pp_type table pl t) p) l ++ fnl() ++
     (* pp_equiv table pl name ind.inst ip_equiv ++ *)
     pp_java_constructor name (List.map (fun (p, t) -> (pp_type table pl t, p)) l) ++ fnl() ++
-    prlist_strict (fun (p,t) -> pp_getter (pp_type table pl t) p) l ++
-  str " } "
+  str " } " ++ fnl()
 
 (* one [Inductive a := ... .] *)
 let pp_one_ind table inst ip_equiv pl name cnames ctyps =
   let pl = rename_tvars keywords pl in
   let pp_constructor i typs =
     fnl () ++
-    str "class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
+    str "public class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
     (* "value" is dummy, must be changed *)
-      prlist_strict (fun t -> pp_instance_var (pp_type table pl t) (str "value")) typs ++ fnl() ++
-      pp_java_constructor cnames.(i) (List.map (fun t -> (pp_type table pl t, str "value")) typs) ++ fnl() ++
-      prlist_strict (fun t -> pp_getter (pp_type table pl t) (str "value")) typs ++
-    str "}"
+      hv 2 (prlist_strict identity (List.mapi (fun j t -> pp_instance_var (pp_type table pl t) (cnames.(i) ++ str (string_of_int j))) typs) 
+        ++ fnl() ++
+        pp_java_constructor cnames.(i) (List.mapi (fun j t -> (pp_type table pl t, cnames.(i) ++ str (string_of_int j))) typs)) ++ fnl() ++
+    str "}" ++ fnl() 
   in 
   pp_parameters pl ++ name ++
   pp_equiv table pl name inst ip_equiv ++ str " {}" ++ fnl() 
@@ -264,7 +255,7 @@ let pp_one_ind table inst ip_equiv pl name cnames ctyps =
 
 (* [Inductive] may be mutual recursive *)
 let pp_ind table ind =
-  let initkwd = str "interface " in
+  let initkwd = str "public interface " in
   let names =
     Array.mapi (fun i p -> if p.ip_logical then mt () else
                   pp_global_name table Type p.ip_typename_ref)
