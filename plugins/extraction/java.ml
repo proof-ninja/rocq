@@ -157,8 +157,9 @@ and pp_fix table env i (ids,bl) args =
 
 and pp_one_pat table env (ids,p,t) =
   let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
-  pp_gen_pat table (List.rev ids') env' p,
-  pp_expr table env' [] t
+  let constr, instance = pp_gen_pat table (List.rev ids') env' p in
+  (constr, instance),
+  pp_expr table env' [] t (* with [instance[i] !-> ((constr)exp).constr_i] etc. *)
 
 and pp_pat table env exp pv = (* TODO *)
   prvecti
