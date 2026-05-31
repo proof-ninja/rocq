@@ -37,7 +37,9 @@ let preamble _ _ comment _ _ =
   pp_header_comment comment 
   (* ++ import java.util.function.Function; *)
   (* ++ dummy *)
-  ++ str "public class Main {" ++ fnl() ++ fnl()
+  ++ str "public class Main {" ++ fnl() ++ fnl() ++
+  str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" (* for [let ... in ...] *)
+  ++ fnl() ++ fnl()
   (* forget last "}" *)
 
 let comma = fun _ -> str ", "
@@ -74,20 +76,17 @@ let pp_type table vl t =
 let pp_app st args = 
   let rec pp_rec args = match args with
     | [] -> str ""
-    | h::t  -> str ".apply" ++ paren h ++ pp_rec t 
+    | h::t  -> hov 0 (str ".apply" ++ paren h ++ pp_rec t)
   in
   st ++ pp_rec args
 
 let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x -> e)" *)
   | [] -> assert false
-  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " -> " 
+  | _ -> (prlist_with_sep (fun _ -> str " -> ") pr_id idlist) ++ str " ->" 
     ++ spc () ++ st ++ fnl()
 
-let pp_letin pat def body = (* ((Supplier<T2>) (() -> { T1 x = e1; return e2; })).get() *)
-  paren ((paren (str "Supplier<Object>")) ++ paren (str "() -> {" ++ fnl()
-    ++ str "Object" ++ pat ++ str " = " ++ def ++ str ";" ++ fnl()
-    ++ str "return " ++ body ++ str ";" ++ fnl()
-    ++ str "}")) ++ str ".get()"
+let pp_letin x def body = (* let(def, x -> body), where [let] is a defined function *)
+  hv 0 (hv 0 (str "let" ++ paren (def ++ str ", " ++ x ++ str " ->" ++ spc() ++ hov 0 body)))
 
 let pp_ids_pat table ids env = function
   | Pwild -> str "_"
@@ -98,7 +97,7 @@ let pp_gen_pat table ids env = function
   | Pcons (r, l) -> pp_global table Cons r, (List.map (pp_ids_pat table ids env) l)
   | Pusual r -> pp_global table Cons r, (List.map Id.print ids)
   | Ptuple l -> str "not implemented pattern...", []
-  | Pwild -> str "_", []
+  | Pwild -> str "_", [] (* TODO *)
   | Prel n -> Id.print (get_db_name n env), []    
 
 let rec pp_expr table env args =
@@ -156,17 +155,18 @@ and pp_fix table env i (ids,bl) args =
       hov 2 (str ";" ++ fnl() ++ pp_app (Id.print ids.(i)) args)
 
 and pp_one_pat table env (ids,p,t) =
+  (* rename ids into Cons1, Cons2, ... *)
   let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
   let constr, instance = pp_gen_pat table (List.rev ids') env' p in
   (constr, instance),
   pp_expr table env' [] t (* with [instance[i] !-> ((constr)exp).constr_i] etc. *)
 
-and pp_pat table env exp pv = (* TODO *)
+and pp_pat table env exp pv = (* TODO : How about wildcard? *)
   prvecti
     (fun i x ->
       let (constr, instance), body = pp_one_pat table env x in
-      hv 2 (hov 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body)) ++ fnl() ++
-       if Int.equal i (Array.length pv - 1) then mt() else fnl() ++ str ": ")
+      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body) (* omit [instanceof] statement *)
+      else hv 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     pv
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
@@ -209,8 +209,8 @@ let pp_equiv table param_list name inst = function
 
 let pp_instance_var t name = str "final " ++ t ++ str " " ++ name ++ str ";" ++ fnl()
 let pp_java_constructor classname ty_name_list = 
-  classname ++ paren (prlist_with_sep (fun () -> str ", ") (fun (t, name) -> t ++ str " " ++ name) ty_name_list) ++ str " {" ++ fnl() ++
-      hv 2 (prlist_strict (fun (_, name) -> str "this." ++ name ++ str " = " ++ name ++ str ";" ++ fnl()) ty_name_list)
+  hv 2 (classname ++ paren (prlist_with_sep (fun () -> str ", ") (fun (t, name) -> t ++ str " " ++ name) ty_name_list) ++ str " {" ++ fnl() ++
+      prlist_strict (fun (_, name) -> str "this." ++ name ++ str " = " ++ name ++ str ";" ++ fnl()) ty_name_list)
     ++ str "}" ++ fnl()
 
 
@@ -223,7 +223,7 @@ let pp_singleton table packet =
   str "public class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
     pp_instance_var ty fieldname ++ fnl() ++
     pp_java_constructor name [(ty, fieldname)] ++ fnl() 
-    ++ str "}" ++ fnl()
+    ++ str "}" ++ fnl2()
 
 (* class with two or more constructors *)
 let pp_record table fields ip_equiv packet =
@@ -236,19 +236,18 @@ let pp_record table fields ip_equiv packet =
     prlist_strict (fun (p,t) -> pp_instance_var (pp_type table pl t) p) l ++ fnl() ++
     (* pp_equiv table pl name ind.inst ip_equiv ++ *)
     pp_java_constructor name (List.map (fun (p, t) -> (pp_type table pl t, p)) l) ++ fnl() ++
-  str " } " ++ fnl()
+  str " } " ++ fnl2()
 
 (* one [Inductive a := ... .] *)
 let pp_one_ind table inst ip_equiv pl name cnames ctyps =
   let pl = rename_tvars keywords pl in
   let pp_constructor i typs =
-    fnl () ++
-    str "public class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
+    hv 2 (str "public class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
     (* "value" is dummy, must be changed *)
-      hv 2 (prlist_strict identity (List.mapi (fun j t -> pp_instance_var (pp_type table pl t) (cnames.(i) ++ str (string_of_int j))) typs) 
+      prlist_strict identity (List.mapi (fun j t -> pp_instance_var (pp_type table pl t) (cnames.(i) ++ str (string_of_int j))) typs) 
         ++ fnl() ++
-        pp_java_constructor cnames.(i) (List.mapi (fun j t -> (pp_type table pl t, cnames.(i) ++ str (string_of_int j))) typs)) ++ fnl() ++
-    str "}" ++ fnl() 
+        hv 2 (pp_java_constructor cnames.(i) (List.mapi (fun j t -> (pp_type table pl t, cnames.(i) ++ str (string_of_int j))) typs)) ++ fnl() ++
+    str "}") ++ fnl2() 
   in 
   pp_parameters pl ++ name ++
   pp_equiv table pl name inst ip_equiv ++ str " {}" ++ fnl() 
@@ -304,7 +303,7 @@ let rec pp_decl table = function
       else
         hov 2 (pp_type table [] t ++ spc() ++ pp_global table Term r ++ str " = " ++
                         (if is_custom r then str (find_custom r)
-                         else pp_expr table (empty_env table ()) [] a))
+                         else pp_expr table (empty_env table ()) [] a) ++ str ";")
         ++ fnl2 ()
 
 
