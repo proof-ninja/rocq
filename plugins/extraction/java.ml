@@ -94,11 +94,11 @@ let pp_ids_pat table ids env = function
   | _ -> assert false
 
 let pp_gen_pat table ids env = function
-  | Pcons (r, l) -> pp_global table Cons r, (List.map (pp_ids_pat table ids env) l)
-  | Pusual r -> pp_global table Cons r, (List.map Id.print ids)
-  | Ptuple l -> str "not implemented pattern...", []
-  | Pwild -> str "_", [] (* TODO *)
-  | Prel n -> Id.print (get_db_name n env), []    
+  | Pcons (r, l) -> pp_global_name table Cons r, (List.map (pp_ids_pat table ids env) l)
+  | Pusual r -> pp_global_name table Cons r, (List.map Id.print ids)
+  | Ptuple l -> "not implemented pattern...", []
+  | Pwild -> "_", [] (* TODO *)
+  | Prel n -> Id.to_string (get_db_name n env), []    
 
 let rec pp_expr table env args =
   let apply st = pp_app st args in
@@ -155,16 +155,19 @@ and pp_fix table env i (ids,bl) args =
       hov 2 (str ";" ++ fnl() ++ pp_app (Id.print ids.(i)) args)
 
 and pp_one_pat table env (ids,p,t) =
+  (* let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in *)
+  let idsrev = List.map id_of_mlid ids in
+  let constr, instance = pp_gen_pat table idsrev env p in
   (* rename ids into Cons1, Cons2, ... *)
-  let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
-  let constr, instance = pp_gen_pat table (List.rev ids') env' p in
-  (constr, instance),
+  let rename_pat = (fun i x -> Id.of_string ("__" ^ constr ^ "_" ^ (Id.to_string x) ^ "_dot_" ^ constr ^ string_of_int i)) in
+  let ids',env' = push_vars (List.rev (List.mapi rename_pat idsrev)) env in 
+  (str constr, instance),
   pp_expr table env' [] t (* with [instance[i] !-> ((constr)exp).constr_i] etc. *)
 
 and pp_pat table env exp pv = (* TODO : How about wildcard? *)
   prvecti
     (fun i x ->
-      let (constr, instance), body = pp_one_pat table env x in
+      let (constr, _), body = pp_one_pat table env x in
       if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body) (* omit [instanceof] statement *)
       else hv 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     pv
