@@ -297,7 +297,7 @@ let pp_mind table i =
 
 let rec pp_decl table = function
   | Dind i -> pp_mind table i
-  | Dtype _ -> str "type" (* TODO *)
+  | Dtype _ -> str "type" ++ fnl2() (* TODO *)
   | Dfix (rv, defs,ty) -> 
     let terms = (Array.map3 (fun x y z -> Dterm (x, y, z)) rv defs ty) in 
     Array.fold_left (fun s term -> s ++ pp_decl table term ++ str "\n") (str "") terms
