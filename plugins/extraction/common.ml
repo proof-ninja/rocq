@@ -693,6 +693,7 @@ let pp_global_with_key table k key r =
       | JSON -> dottify (List.map unquote rls)
       | Haskell -> if State.get_modular table then pp_haskell_gen table k mp rls else s
       | Ocaml -> pp_ocaml_gen table k mp rls (Some l)
+      | Java -> unquote s (* no modular Java extraction...? TODO *)
 
 let pp_global table k r =
   pp_global_with_key table k (repr_of_r r) r
