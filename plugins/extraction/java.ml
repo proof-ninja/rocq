@@ -34,13 +34,8 @@ let pp_header_comment = function
   | Some com -> pp_comment com ++ fnl () ++ fnl ()
 
 let preamble _ _ comment _ _ =
-  pp_header_comment comment 
-  (* ++ import java.util.function.Function; *)
-  (* ++ dummy *)
-  ++ str "public class Main {" ++ fnl() ++ fnl() ++
-  str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" (* for [let ... in ...] *)
-  ++ fnl() ++ fnl()
-  (* forget last "}" *)
+  pp_header_comment comment ++
+  str "import java.util.function.Function;" ++ fnl() ++ fnl()
 
 let comma = fun _ -> str ", "
 let paren = pp_par true
@@ -104,7 +99,7 @@ let rec pp_expr table env args =
   let apply st = pp_app st args in
   function
     | MLrel n ->
-        let id = get_db_name n env in apply (Id.print id)
+        let id = get_db_name n env in apply (pr_id id)
     | MLapp (f,args') ->
         let stl = List.map (pp_expr table env []) args' in
         pp_expr table env (stl @ args) f
@@ -114,7 +109,7 @@ let rec pp_expr table env args =
         apply (pp_abst (pp_expr table env' [] a') (List.rev fl))
     | MLletin (id,a1,a2) ->
         let i,env' = push_vars [id_of_mlid id] env in
-        let pp_id = Id.print (List.hd i)
+        let pp_id = pr_id (List.hd i)
         and pp_a1 = pp_expr table env [] a1
         and pp_a2 = pp_expr table env' [] a2 in
         hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
@@ -122,7 +117,7 @@ let rec pp_expr table env args =
         apply (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
         assert (List.is_empty args);
-        (* str "new " ++ *) pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
+        str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
     | MLcase (_,t, pv) -> 
           pp_pat table env (pp_expr table env [] t) pv
@@ -149,26 +144,37 @@ let rec pp_expr table env args =
 and pp_fix table env i (ids,bl) args =
       prvect_with_sep
         (fun () -> str ";" ++ fnl() ++ str "var ")
-        (fun (fi,ti) -> Id.print fi ++ pp_expr table env [] ti)
+        (fun (fi,ti) -> pr_id fi ++ str " = " ++ pp_expr table env [] ti)
         (Array.map2 (fun id b -> (id,b)) ids bl) ++
       fnl () ++
-      hov 2 (str ";" ++ fnl() ++ pp_app (Id.print ids.(i)) args)
+      hov 2 (str ";" ++ fnl() ++ pp_app (pr_id ids.(i)) args)
 
-and pp_one_pat table env (ids,p,t) =
-  (* let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in *)
-  let idsrev = List.map id_of_mlid ids in
-  let constr, instance = pp_gen_pat table idsrev env p in
-  (* rename ids into Cons1, Cons2, ... *)
-  let rename_pat = (fun i x -> Id.of_string ("__" ^ constr ^ "_" ^ (Id.to_string x) ^ "_dot_" ^ constr ^ string_of_int i)) in
-  let ids',env' = push_vars (List.rev (List.mapi rename_pat idsrev)) env in 
-  (str constr, instance),
-  pp_expr table env' [] t (* with [instance[i] !-> ((constr)exp).constr_i] etc. *)
+and pp_one_pat table env exp (ids,p,t) =
+  (* Push vars: rev so that ids.(0) (de Bruijn 1, last constructor arg) is pushed last.
+     After push, ids'.(j) is the fresh name for field j of the constructor. *)
+  let n = List.length ids in
+  let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
+  let constr, _instance = pp_gen_pat table (List.map id_of_mlid ids) env p in
+  let body = pp_expr table env' [] t in
+  (* Wrap body with let-bindings for each constructor field j:
+       let(((Constr)exp).Constr_j, var_j -> ... body ...)
+     Field 0 is outermost, field n-1 is innermost. *)
+  let cast_exp = paren (paren (str constr) ++ exp) in
+  let wrapped = List.fold_right
+    (fun j acc ->
+      let field = str (constr ^ string_of_int j) in
+      let var   = pr_id (List.nth ids' j) in
+      pp_letin var (cast_exp ++ str "." ++ field) acc)
+    (List.init n (fun j -> j))
+    body
+  in
+  str constr, wrapped
 
 and pp_pat table env exp pv = (* TODO : How about wildcard? *)
   prvecti
     (fun i x ->
-      let (constr, _), body = pp_one_pat table env x in
-      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body) (* omit [instanceof] statement *)
+      let constr, body = pp_one_pat table env exp x in
+      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body)
       else hv 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     pv
 
@@ -298,9 +304,25 @@ let pp_mind table i =
 let rec pp_decl table = function
   | Dind i -> pp_mind table i
   | Dtype _ -> str "type" ++ fnl2() (* TODO *)
-  | Dfix (rv, defs,ty) -> 
-    let terms = (Array.map3 (fun x y z -> Dterm (x, y, z)) rv defs ty) in 
-    Array.fold_left (fun s term -> s ++ pp_decl table term ++ str "\n") (str "") terms
+  | Dfix (rv, defs, ty) ->
+    (* Declare fields first, then assign in an instance initializer block.
+       This avoids the "self-reference in initializer" error that occurs when a
+       recursive lambda field initializer refers to the field being initialized. *)
+    let n = Array.length rv in
+    let decl i =
+      if is_inline_custom rv.(i) then mt ()
+      else pp_type table [] ty.(i) ++ spc() ++ pp_global table Term rv.(i) ++ str ";" ++ fnl()
+    in
+    let init i =
+      if is_inline_custom rv.(i) then mt ()
+      else pp_global table Term rv.(i) ++ str " = " ++
+        (if is_custom rv.(i) then str (find_custom rv.(i))
+         else pp_expr table (empty_env table ()) [] defs.(i)) ++ str ";" ++ fnl()
+    in
+    Array.fold_left (++) (mt ()) (Array.init n decl) ++
+    str "{" ++ fnl() ++
+    Array.fold_left (++) (mt ()) (Array.init n init) ++
+    str "}" ++ fnl2()
   | Dterm (r, a, t) ->
       if is_inline_custom r then mt ()
       else
@@ -328,7 +350,12 @@ let pp_struct table =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in
-  prlist_strict pp_sel
+  fun structure ->
+    str "class Main {" ++ fnl() ++ fnl() ++
+    str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
+    fnl() ++ fnl() ++
+    prlist_strict pp_sel structure ++
+    str "}" ++ fnl()
   
 let file_naming state mp = file_of_modfile (State.get_table state) mp
 
