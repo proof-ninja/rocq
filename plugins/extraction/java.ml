@@ -119,8 +119,12 @@ let rec pp_expr table env args =
         assert (List.is_empty args);
         str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
-    | MLcase (_,t, pv) -> 
-          pp_pat table env (pp_expr table env [] t) pv
+    | MLcase (_,t, pv) ->
+        let db, avoid = env in
+        let ids, avoid' = rename_vars avoid [Id.of_string "scrutinee"] in
+        let id = str "$" ++ pr_id (List.hd ids) in
+        let body = pp_pat table (db, avoid') id pv in
+        pp_letin id (pp_expr table env [] t) body
     | MLfix (i,ids,defs) -> 
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
