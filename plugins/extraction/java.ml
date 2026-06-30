@@ -119,8 +119,8 @@ let rec pp_expr table env args =
         assert (List.is_empty args);
         str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
-    | MLcase (_,t, pv) -> 
-          pp_pat table env (pp_expr table env [] t) pv
+    | MLcase (_,t, pv) ->
+          pp_pat table env t pv
     | MLfix (i,ids,defs) -> 
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
@@ -161,20 +161,45 @@ and pp_one_pat table env exp (ids,p,t) =
   let cast_exp = paren (paren (str constr) ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
-      let field = str (constr ^ string_of_int j) in
-      let var   = pr_id (List.nth ids_field j) in
-      pp_letin var (cast_exp ++ str "." ++ field) acc)
+      let id = List.nth ids_field j in
+      (* A field bound to a dummy (unused) variable needs no binding: the body
+         never refers to it, and emitting one would print the reserved Java
+         identifier [_] (and collide if several fields are unused). *)
+      if Id.equal id dummy_name then acc
+      else
+        let field = str (constr ^ string_of_int j) in
+        let var   = pr_id id in
+        pp_letin var (cast_exp ++ str "." ++ field) acc)
     (List.init n (fun j -> j))
     body
   in
   str constr, wrapped
 
-and pp_pat table env exp pv = (* TODO : How about wildcard? *)
+(* TODO: the last branch is cast unconditionally; a non-exhaustive match would
+   raise a bare ClassCastException instead of an explicit extraction error. *)
+and pp_pat table env t pv = (* TODO : How about wildcard / Prel at top level? *)
+  let exp = pp_expr table env [] t in
+  match t with
+  | MLrel _ | MLglob _ ->
+      (* already a simple value: safe and cheap to repeat in place *)
+      pp_pat_branches table env exp pv
+  | _ ->
+      (* bind the scrutinee once so a complex/effectful expression is not
+         re-evaluated in every [instanceof] test and field access. The name is
+         reserved in the avoid-set only (not the de Bruijn list) so the branch
+         bodies keep their original de Bruijn indices. *)
+      let db, avoid = env in
+      let scrut_id = rename_id (Id.of_string "scrutinee") avoid in
+      let env = (db, Id.Set.add scrut_id avoid) in
+      let scrut = pr_id scrut_id in
+      pp_letin scrut exp (pp_pat_branches table env scrut pv)
+
+and pp_pat_branches table env scrut pv =
   prvecti
     (fun i x ->
-      let constr, body = pp_one_pat table env exp x in
-      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body)
-      else hv 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
+      let constr, body = pp_one_pat table env scrut x in
+      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (scrut ++ str " instanceof " ++ constr) ++ body)
+      else hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     pv
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
