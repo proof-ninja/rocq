@@ -119,8 +119,8 @@ let rec pp_expr table env args =
         assert (List.is_empty args);
         str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
-    | MLcase (_,t, pv) -> 
-          pp_pat table env (pp_expr table env [] t) pv
+    | MLcase (_,t, pv) ->
+          pp_pat table env t pv
     | MLfix (i,ids,defs) -> 
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
@@ -150,32 +150,56 @@ and pp_fix table env i (ids,bl) args =
       hov 2 (str ";" ++ fnl() ++ pp_app (pr_id ids.(i)) args)
 
 and pp_one_pat table env exp (ids,p,t) =
-  (* Push vars: rev so that ids.(0) (de Bruijn 1, last constructor arg) is pushed last.
-     After push, ids'.(j) is the fresh name for field j of the constructor. *)
+  (* push_vars after List.rev_map makes the head of ids' correspond to
+     de Bruijn 1 (= the last constructor argument). To match constructor
+     field index j (0 = first argument) we use List.rev ids'. *)
   let n = List.length ids in
   let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
+  let ids_field = List.rev ids' in
   let constr, _instance = pp_gen_pat table (List.map id_of_mlid ids) env p in
   let body = pp_expr table env' [] t in
-  (* Wrap body with let-bindings for each constructor field j:
-       let(((Constr)exp).Constr_j, var_j -> ... body ...)
-     Field 0 is outermost, field n-1 is innermost. *)
   let cast_exp = paren (paren (str constr) ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
-      let field = str (constr ^ string_of_int j) in
-      let var   = pr_id (List.nth ids' j) in
-      pp_letin var (cast_exp ++ str "." ++ field) acc)
+      let id = List.nth ids_field j in
+      (* A field bound to a dummy (unused) variable needs no binding: the body
+         never refers to it, and emitting one would print the reserved Java
+         identifier [_] (and collide if several fields are unused). *)
+      if Id.equal id dummy_name then acc
+      else
+        let field = str (constr ^ string_of_int j) in
+        let var   = pr_id id in
+        pp_letin var (cast_exp ++ str "." ++ field) acc)
     (List.init n (fun j -> j))
     body
   in
   str constr, wrapped
 
-and pp_pat table env exp pv = (* TODO : How about wildcard? *)
+(* TODO: the last branch is cast unconditionally; a non-exhaustive match would
+   raise a bare ClassCastException instead of an explicit extraction error. *)
+and pp_pat table env t pv = (* TODO : How about wildcard / Prel at top level? *)
+  let exp = pp_expr table env [] t in
+  match t with
+  | MLrel _ | MLglob _ ->
+      (* already a simple value: safe and cheap to repeat in place *)
+      pp_pat_branches table env exp pv
+  | _ ->
+      (* bind the scrutinee once so a complex/effectful expression is not
+         re-evaluated in every [instanceof] test and field access. The name is
+         reserved in the avoid-set only (not the de Bruijn list) so the branch
+         bodies keep their original de Bruijn indices. *)
+      let db, avoid = env in
+      let scrut_id = rename_id (Id.of_string "scrutinee") avoid in
+      let env = (db, Id.Set.add scrut_id avoid) in
+      let scrut = pr_id scrut_id in
+      pp_letin scrut exp (pp_pat_branches table env scrut pv)
+
+and pp_pat_branches table env scrut pv =
   prvecti
     (fun i x ->
-      let constr, body = pp_one_pat table env exp x in
-      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (exp ++ str " instanceof " ++ constr) ++ body)
-      else hv 2 (paren (exp ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
+      let constr, body = pp_one_pat table env scrut x in
+      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (scrut ++ str " instanceof " ++ constr) ++ body)
+      else hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     pv
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
@@ -229,9 +253,9 @@ let pp_singleton table packet =
   let l = rename_tvars keywords packet.ip_vars in
   let fieldname = Id.print packet.ip_consnames.(0) in
   let ty = pp_type table l (List.hd packet.ip_types.(0)) in
-  str "public class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
+  str "public static class " ++ pp_parameters l ++ name ++ str " {" ++ fnl() ++
     pp_instance_var ty fieldname ++ fnl() ++
-    pp_java_constructor name [(ty, fieldname)] ++ fnl() 
+    pp_java_constructor name [(ty, fieldname)] ++ fnl()
     ++ str "}" ++ fnl2()
 
 (* class with two or more constructors *)
@@ -241,7 +265,7 @@ let pp_record table fields ip_equiv packet =
   let fieldnames = pp_fields table ind fields in
   let l = List.combine fieldnames packet.ip_types.(0) in
   let pl = rename_tvars keywords packet.ip_vars in
-  str "public class " ++ pp_parameters pl ++ name ++ str " {" ++ fnl() ++
+  str "public static class " ++ pp_parameters pl ++ name ++ str " {" ++ fnl() ++
     prlist_strict (fun (p,t) -> pp_instance_var (pp_type table pl t) p) l ++ fnl() ++
     (* pp_equiv table pl name ind.inst ip_equiv ++ *)
     pp_java_constructor name (List.map (fun (p, t) -> (pp_type table pl t, p)) l) ++ fnl() ++
@@ -251,7 +275,7 @@ let pp_record table fields ip_equiv packet =
 let pp_one_ind table inst ip_equiv pl name cnames ctyps =
   let pl = rename_tvars keywords pl in
   let pp_constructor i typs =
-    hv 2 (str "public class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
+    hv 2 (str "public static class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
     (* "value" is dummy, must be changed *)
       prlist_strict identity (List.mapi (fun j t -> pp_instance_var (pp_type table pl t) (cnames.(i) ++ str (string_of_int j))) typs) 
         ++ fnl() ++
@@ -301,7 +325,7 @@ let pp_mind table i =
     | Standard -> pp_ind table i
 
 
-let rec pp_decl table = function
+let pp_decl table = function
   | Dind i -> pp_mind table i
   | Dtype _ -> str "type" ++ fnl2() (* TODO *)
   | Dfix (rv, defs, ty) ->
@@ -311,7 +335,7 @@ let rec pp_decl table = function
     let n = Array.length rv in
     let decl i =
       if is_inline_custom rv.(i) then mt ()
-      else pp_type table [] ty.(i) ++ spc() ++ pp_global table Term rv.(i) ++ str ";" ++ fnl()
+      else str "static " ++ pp_type table [] ty.(i) ++ spc() ++ pp_global table Term rv.(i) ++ str ";" ++ fnl()
     in
     let init i =
       if is_inline_custom rv.(i) then mt ()
@@ -320,13 +344,13 @@ let rec pp_decl table = function
          else pp_expr table (empty_env table ()) [] defs.(i)) ++ str ";" ++ fnl()
     in
     Array.fold_left (++) (mt ()) (Array.init n decl) ++
-    str "{" ++ fnl() ++
+    str "static {" ++ fnl() ++
     Array.fold_left (++) (mt ()) (Array.init n init) ++
     str "}" ++ fnl2()
   | Dterm (r, a, t) ->
       if is_inline_custom r then mt ()
       else
-        hov 2 (pp_type table [] t ++ spc() ++ pp_global table Term r ++ str " = " ++
+        hov 2 (str "static " ++ pp_type table [] t ++ spc() ++ pp_global table Term r ++ str " = " ++
                         (if is_custom r then str (find_custom r)
                          else pp_expr table (empty_env table ()) [] a) ++ str ";")
         ++ fnl2 ()
