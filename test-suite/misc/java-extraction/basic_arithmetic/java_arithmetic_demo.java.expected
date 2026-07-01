@@ -1,0 +1,49 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = n -> m ->
+(n instanceof O) ? m
+: // n instanceof S
+    let(((S)n).S0, n$ -> new S(add.apply(n$).apply(m)))
+;
+}
+
+static Function<nat, nat> double0 = n -> add.apply(n).apply(n)
+  ;
+
+static Function<nat, Function<nat, nat>> mul;
+static {
+mul = n -> m ->
+(n instanceof O) ? new O()
+: // n instanceof S
+    let(((S)n).S0, n$ -> add.apply(m).apply(mul.apply(n$).apply(m)))
+;
+}
+
+static nat two = new S(new S(new O()));
+
+static nat three = new S(two);
+
+}

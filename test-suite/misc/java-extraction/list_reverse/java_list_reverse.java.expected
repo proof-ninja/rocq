@@ -1,0 +1,65 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface natlist {}
+public static class Nil implements natlist {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements natlist {
+  final nat Cons0;
+  final natlist Cons1;
+  
+  Cons(nat Cons0, natlist Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<natlist, Function<natlist, natlist>>
+app;
+static {
+app = l1 -> l2 ->
+(l1 instanceof Nil) ? l2
+: // l1 instanceof Cons
+    let(((Cons)l1).Cons0, x ->
+    let(((Cons)l1).Cons1, xs -> new Cons(x, app.apply(xs).apply(l2))))
+;
+}
+
+static Function<natlist, natlist> reverse;
+static {
+reverse = l ->
+(l instanceof Nil) ? new Nil()
+: // l instanceof Cons
+    let(((Cons)l).Cons0, x ->
+    let(((Cons)l).Cons1, xs ->
+    app.apply(reverse.apply(xs)).apply(new Cons(x, new Nil()))))
+;
+}
+
+}
