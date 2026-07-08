@@ -1,0 +1,42 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+public interface color {}
+public static class Red implements color {
+  
+  Red() {
+    }
+    
+  }
+
+public static class Green implements color {
+  
+  Green() {
+    }
+    
+  }
+
+public static class Blue implements color {
+  
+  Blue() {
+    }
+    
+  }
+
+static Function<color, color> default_to_red = c ->
+  (c instanceof Red) ? new Green()
+  : new Red()
+  ;
+
+static Function<color, color> normalize = c ->
+  let(default_to_red.apply(c), scrutinee ->
+  (scrutinee instanceof Red) ? new Green()
+  : let(scrutinee, x -> x))
+  ;
+
+}
