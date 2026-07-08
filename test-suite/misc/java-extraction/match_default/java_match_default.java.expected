@@ -36,14 +36,14 @@ public static class Blue implements color {
   }
 
 static Function<color, color> default_to_red = c ->
-  (c instanceof Red) ? new Green()
-  : new Red()
+  ((c instanceof Red) ? ((color) new Green())
+  : ((color) new Red()))
   ;
 
 static Function<color, color> normalize = c ->
-  let(default_to_red.apply(c), scrutinee ->
-  (scrutinee instanceof Red) ? new Green()
-  : let(scrutinee, x -> x))
+  (let(default_to_red.apply(c), scrutinee ->
+   (scrutinee instanceof Red) ? ((color) new Green())
+   : let(scrutinee, x -> x)))
   ;
 
 }

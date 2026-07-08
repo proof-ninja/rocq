@@ -47,9 +47,9 @@ public static class Wrap implements shape {
   }
 
 static Function<shape, result> from_shape = s ->
-  (s instanceof Leaf) ? new Ok()
+  ((s instanceof Leaf) ? ((result) new Ok())
   : (s instanceof Wrap) ? error("absurd case")
-  : error("non-exhaustive match")
+  : error("non-exhaustive match"))
   ;
 
 }

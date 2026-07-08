@@ -13,6 +13,13 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
 public interface nat {}
 public static class O implements nat {
   
@@ -50,28 +57,30 @@ public static class Cons implements natlist {
   }
 
 static Function<natlist, Function<natlist, natlist>>
-app;
+rev_acc;
 static {
-app = l1 -> l2 ->
-((l1 instanceof Nil) ? l2
-: (l1 instanceof Cons) ? let(((Cons)l1).Cons0, x ->
-                         let(((Cons)l1).Cons1, xs ->
-                         ((natlist) new Cons(x, app.apply(xs).apply(l2)))))
+rev_acc = l -> acc ->
+((l instanceof Nil) ? acc
+: (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
+                        let(((Cons)l).Cons1, xs ->
+                        rev_acc.apply(xs).apply(((natlist) new Cons(x, acc)))))
 : error("non-exhaustive match"))
 ;
 }
 
-static Function<natlist, natlist> reverse;
-static {
-reverse = l ->
-((l instanceof Nil) ? ((natlist) new Nil())
-: (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
-                        let(((Cons)l).Cons1, xs ->
-                        app.apply(reverse.apply(xs)).apply(((natlist)
-                                                    new Cons(x, ((natlist)
-                                                    new Nil()))))))
-: error("non-exhaustive match"))
-;
-}
+static Function<natlist, natlist> rev_pair = l -> fix2(go -> l0 -> acc ->
+  ((l0 instanceof Nil) ? acc
+  : (l0 instanceof Cons) ? let(((Cons)l0).Cons0, x ->
+                           let(((Cons)l0).Cons1, xs ->
+                           go.apply(xs).apply(((natlist) new Cons(x, acc)))))
+  : error("non-exhaustive match"))
+  , fix2(go -> l0 -> acc ->
+  ((l0 instanceof Nil) ? acc
+  : (l0 instanceof Cons) ? let(((Cons)l0).Cons0, x ->
+                           let(((Cons)l0).Cons1, xs ->
+                           go.apply(xs).apply(((natlist) new Cons(x, acc)))))
+  : error("non-exhaustive match"))
+  , l, ((natlist) new Nil())), ((natlist) new Nil()))
+  ;
 
 }
