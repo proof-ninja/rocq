@@ -4,6 +4,8 @@ class Main {
 
 static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
 
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
 public interface nat {}
 public static class O implements nat {
   
