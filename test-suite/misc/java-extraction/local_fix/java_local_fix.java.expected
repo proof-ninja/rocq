@@ -1,0 +1,75 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface natlist {}
+public static class Nil implements natlist {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements natlist {
+  final nat Cons0;
+  final natlist Cons1;
+  
+  Cons(nat Cons0, natlist Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<natlist, Function<natlist, natlist>> rev_acc = l -> _ ->
+  fix2(go -> l0 -> acc ->
+  ((l0 instanceof Nil) ? acc
+  : // l0 instanceof Cons
+      let(((Cons)l0).Cons0, x ->
+      let(((Cons)l0).Cons1, xs ->
+      go.apply(xs).apply(((natlist) new Cons(x, acc))))))
+  , l, ((natlist) new Nil()))
+  ;
+
+static Function<natlist, natlist> rev_pair = l -> fix2(go -> l0 -> acc ->
+  ((l0 instanceof Nil) ? acc
+  : // l0 instanceof Cons
+      let(((Cons)l0).Cons0, x ->
+      let(((Cons)l0).Cons1, xs ->
+      go.apply(xs).apply(((natlist) new Cons(x, acc))))))
+  , fix2(go -> l0 -> acc ->
+  ((l0 instanceof Nil) ? acc
+  : // l0 instanceof Cons
+      let(((Cons)l0).Cons0, x ->
+      let(((Cons)l0).Cons1, xs ->
+      go.apply(xs).apply(((natlist) new Cons(x, acc))))))
+  , l, ((natlist) new Nil())), ((natlist) new Nil()))
+  ;
+
+}

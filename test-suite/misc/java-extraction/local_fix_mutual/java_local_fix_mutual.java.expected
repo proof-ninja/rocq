@@ -1,0 +1,71 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A1, R> Function<A1, R> fix0(Function<Function<A1, R>, Function<A1, R>> gen) {
+  return a1 -> fix1(gen, a1);
+}
+
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface parity {}
+public static class Even implements parity {
+  
+  Even() {
+    }
+    
+  }
+
+public static class Odd implements parity {
+  
+  Odd() {
+    }
+    
+  }
+
+static Function<nat, parity> parity_of = fix0(evenp -> n ->
+  ((n instanceof O) ? ((parity) new Even())
+  : // n instanceof S
+      let(((S)n).S0, m ->
+      fix1(oddp -> n0 ->
+      ((n0 instanceof O) ? ((parity) new Odd())
+      : // n0 instanceof S
+          let(((S)n0).S0, m0 -> evenp.apply(m0)))
+      , m)))
+  );
+
+static Function<nat, parity> parity_of_succ = n -> fix1(oddp -> n0 ->
+  ((n0 instanceof O) ? ((parity) new Odd())
+  : // n0 instanceof S
+      let(((S)n0).S0, m ->
+      fix1(evenp -> n1 ->
+      ((n1 instanceof O) ? ((parity) new Even())
+      : // n1 instanceof S
+          let(((S)n1).S0, m0 -> oddp.apply(m0)))
+      , m)))
+  , ((nat) new S(((nat) new S(n)))))
+  ;
+
+}

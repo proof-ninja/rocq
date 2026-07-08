@@ -24,9 +24,9 @@ public static class S implements nat {
 static Function<nat, Function<nat, nat>> add;
 static {
 add = n -> m ->
-(n instanceof O) ? m
+((n instanceof O) ? m
 : // n instanceof S
-    let(((S)n).S0, n$ -> new S(add.apply(n$).apply(m)))
+    let(((S)n).S0, n$ -> ((nat) new S(add.apply(n$).apply(m)))))
 ;
 }
 
@@ -36,14 +36,14 @@ static Function<nat, nat> double0 = n -> add.apply(n).apply(n)
 static Function<nat, Function<nat, nat>> mul;
 static {
 mul = n -> m ->
-(n instanceof O) ? new O()
+((n instanceof O) ? ((nat) new O())
 : // n instanceof S
-    let(((S)n).S0, n$ -> add.apply(m).apply(mul.apply(n$).apply(m)))
+    let(((S)n).S0, n$ -> add.apply(m).apply(mul.apply(n$).apply(m))))
 ;
 }
 
-static nat two = new S(new S(new O()));
+static nat two = ((nat) new S(((nat) new S(((nat) new O())))));
 
-static nat three = new S(two);
+static nat three = ((nat) new S(two));
 
 }

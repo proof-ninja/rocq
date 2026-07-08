@@ -108,7 +108,9 @@ val ast_occurs : int -> ml_ast -> bool
 val ast_occurs_itvl : int -> int -> ml_ast -> bool
 val ast_lift : int -> ml_ast -> ml_ast
 val ast_pop : ml_ast -> ml_ast
+val permut_rels : int -> int -> ml_ast -> ml_ast
 val ast_subst : ml_ast -> ml_ast -> ml_ast
+val gen_subst : ml_ast option array -> int -> ml_ast -> ml_ast
 
 val ast_glob_subst : ml_ast Refmap'.t -> ml_ast -> ml_ast
 
