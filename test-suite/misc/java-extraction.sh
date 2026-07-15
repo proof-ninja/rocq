@@ -7,3 +7,5 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" list_reverse
 "$self_dir/java-extraction/run-case.sh" match_failure
 "$self_dir/java-extraction/run-case.sh" match_default
+"$self_dir/java-extraction/run-case.sh" absurd_match
+"$self_dir/java-extraction/run-case.sh" axiom
