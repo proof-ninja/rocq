@@ -4,6 +4,8 @@ class Main {
 
 static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
 
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
 public interface nat {}
 public static class O implements nat {
   
@@ -25,8 +27,8 @@ static Function<nat, Function<nat, nat>> add;
 static {
 add = n -> m ->
 (n instanceof O) ? m
-: // n instanceof S
-    let(((S)n).S0, n$ -> new S(add.apply(n$).apply(m)))
+: (n instanceof S) ? let(((S)n).S0, n$ -> new S(add.apply(n$).apply(m)))
+: error("non-exhaustive match")
 ;
 }
 
@@ -37,8 +39,9 @@ static Function<nat, Function<nat, nat>> mul;
 static {
 mul = n -> m ->
 (n instanceof O) ? new O()
-: // n instanceof S
-    let(((S)n).S0, n$ -> add.apply(m).apply(mul.apply(n$).apply(m)))
+: (n instanceof S) ? let(((S)n).S0, n$ ->
+                     add.apply(m).apply(mul.apply(n$).apply(m)))
+: error("non-exhaustive match")
 ;
 }
 

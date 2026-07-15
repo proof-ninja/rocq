@@ -4,6 +4,8 @@ class Main {
 
 static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
 
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
 public interface nat {}
 public static class O implements nat {
   
@@ -45,9 +47,10 @@ app;
 static {
 app = l1 -> l2 ->
 (l1 instanceof Nil) ? l2
-: // l1 instanceof Cons
-    let(((Cons)l1).Cons0, x ->
-    let(((Cons)l1).Cons1, xs -> new Cons(x, app.apply(xs).apply(l2))))
+: (l1 instanceof Cons) ? let(((Cons)l1).Cons0, x ->
+                         let(((Cons)l1).Cons1, xs ->
+                         new Cons(x, app.apply(xs).apply(l2))))
+: error("non-exhaustive match")
 ;
 }
 
@@ -55,10 +58,10 @@ static Function<natlist, natlist> reverse;
 static {
 reverse = l ->
 (l instanceof Nil) ? new Nil()
-: // l instanceof Cons
-    let(((Cons)l).Cons0, x ->
-    let(((Cons)l).Cons1, xs ->
-    app.apply(reverse.apply(xs)).apply(new Cons(x, new Nil()))))
+: (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
+                        let(((Cons)l).Cons1, xs ->
+                        app.apply(reverse.apply(xs)).apply(new Cons(x, new Nil()))))
+: error("non-exhaustive match")
 ;
 }
 

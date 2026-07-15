@@ -91,9 +91,8 @@ let pp_ids_pat table ids env = function
 let pp_gen_pat table ids env = function
   | Pcons (r, l) -> pp_global_name table Cons r, (List.map (pp_ids_pat table ids env) l)
   | Pusual r -> pp_global_name table Cons r, (List.map Id.print ids)
-  | Ptuple l -> "not implemented pattern...", []
-  | Pwild -> "_", [] (* TODO *)
-  | Prel n -> Id.to_string (get_db_name n env), []    
+  | Ptuple _ -> user_err Pp.(str "Cannot handle tuple patterns in Java yet.")
+  | Pwild | Prel _ -> assert false (* catch-all: handled in pp_pat_branches *)
 
 let rec pp_expr table env args =
   let apply st = pp_app st args in
@@ -175,9 +174,23 @@ and pp_one_pat table env exp (ids,p,t) =
   in
   str constr, wrapped
 
-(* TODO: the last branch is cast unconditionally; a non-exhaustive match would
-   raise a bare ClassCastException instead of an explicit extraction error. *)
-and pp_pat table env t pv = (* TODO : How about wildcard / Prel at top level? *)
+(* A top-level [Pwild] or [Prel] matches unconditionally, so it cannot (and
+   need not) be tested with [instanceof]: its body is the default of the
+   conditional chain. [Prel] additionally binds the scrutinee to a variable. *)
+and pp_catch_all_pat table env scrut (ids,p,t) =
+  match p with
+  | Pwild ->
+      assert (List.is_empty ids);
+      pp_expr table env [] t
+  | Prel _ ->
+      let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
+      let body = pp_expr table env' [] t in
+      (match ids' with
+       | [id] -> pp_letin (pr_id id) scrut body
+       | _ -> assert false)
+  | _ -> assert false
+
+and pp_pat table env t pv =
   let exp = pp_expr table env [] t in
   match t with
   | MLrel _ | MLglob _ ->
@@ -194,13 +207,28 @@ and pp_pat table env t pv = (* TODO : How about wildcard / Prel at top level? *)
       let scrut = pr_id scrut_id in
       pp_letin scrut exp (pp_pat_branches table env scrut pv)
 
+(* Every constructor branch (including the last one) is guarded by an
+   [instanceof] test; the chain ends with the first catch-all branch if any,
+   otherwise with an explicit match-failure so that a value fitting no branch
+   raises a clear error instead of an accidental ClassCastException. *)
 and pp_pat_branches table env scrut pv =
-  prvecti
-    (fun i x ->
-      let constr, body = pp_one_pat table env scrut x in
-      if Int.equal i (Array.length pv - 1) then hv 2 (pp_comment (scrut ++ str " instanceof " ++ constr) ++ body)
-      else hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
-    pv
+  let is_catch_all (_,p,_) = match p with Pwild | Prel _ -> true | _ -> false in
+  let rec split acc = function
+    | [] -> List.rev acc, None
+    | b :: _ when is_catch_all b -> List.rev acc, Some b (* later branches are unreachable *)
+    | b :: rest -> split (b :: acc) rest
+  in
+  let tests, default = split [] (Array.to_list pv) in
+  let pp_default = match default with
+    | Some b -> pp_catch_all_pat table env scrut b
+    | None -> str "error(\"non-exhaustive match\")"
+  in
+  prlist_strict
+    (fun b ->
+      let constr, body = pp_one_pat table env scrut b in
+      hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
+    tests ++
+  hv 2 pp_default
 
 (* TODO : almost all of definitions below are from ocaml.ml *)
 let str_global_with_key table k key r =
@@ -377,6 +405,8 @@ let pp_struct table =
   fun structure ->
     str "class Main {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
+    fnl() ++ fnl() ++
+    str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++
     fnl() ++ fnl() ++
     prlist_strict pp_sel structure ++
     str "}" ++ fnl()
