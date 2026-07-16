@@ -49,13 +49,13 @@ let pp_java_string s =
   let buf = Buffer.create (String.length s + 2) in
   Buffer.add_char buf '"';
   String.iter (fun c -> match c with
-    | '"'  -> Buffer.add_string buf "\\\""
-    | '\\' -> Buffer.add_string buf "\\\\"
-    | '\n' -> Buffer.add_string buf "\\n"
-    | '\r' -> Buffer.add_string buf "\\r"
-    | '\t' -> Buffer.add_string buf "\\t"
+    | '"'  -> Buffer.add_string buf {|\"|}
+    | '\\' -> Buffer.add_string buf {|\\|}
+    | '\n' -> Buffer.add_string buf {|\n|}
+    | '\r' -> Buffer.add_string buf {|\r|}
+    | '\t' -> Buffer.add_string buf {|\t|}
     | c when Char.code c < 0x20 ->
-        Buffer.add_string buf (Printf.sprintf "\\u%04x" (Char.code c))
+        Buffer.add_string buf (Printf.sprintf {|\u%04x|} (Char.code c))
     | c -> Buffer.add_char buf c) s;
   Buffer.add_char buf '"';
   str (Buffer.contents buf)
