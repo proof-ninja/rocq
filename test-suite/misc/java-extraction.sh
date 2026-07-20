@@ -9,3 +9,4 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" match_default
 "$self_dir/java-extraction/run-case.sh" absurd_match
 "$self_dir/java-extraction/run-case.sh" axiom
+"$self_dir/java-extraction/run-case.sh" mldummy

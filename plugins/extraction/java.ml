@@ -25,7 +25,10 @@ let keywords =
     "catch"; "extends"; "int"; "short"; "try";
     "char"; "final"; "interface"; "static"; "void";
     "class"; "finally"; "long"; "strictfp"; "volatile";
-    "const"; "float"; "native"; "super"; "while"; "_" ]
+    "const"; "float"; "native"; "super"; "while"; "_";
+    (* not Java keywords, but names of the generated [class Main] helpers:
+       reserve them so extracted identifiers get renamed instead of clashing *)
+    "let"; "error"; "__"; "__dummy" ]
     Id.Set.empty
 
 let pp_comment s = str "// " ++ s ++ fnl ()
@@ -83,8 +86,10 @@ let pp_type table vl t =
         pp_tuple pp_rec l ++ spc () ++ pp_global table Type r
     | Tarr (t1,t2) ->
         str "Function<" ++ pp_rec t1 ++ str ", " ++ pp_rec t2++ str ">"
-    | Tdummy _ -> str "__"
-    | Tunknown -> str "__"
+    (* Both stand for "no informative type here"; [Object] is the weakest
+       valid Java type. A finer strategy (generics) is future work. *)
+    | Tdummy _ -> str "Object"
+    | Tunknown -> str "Object"
   in
   hov 0 (pp_rec t)
 
@@ -144,9 +149,13 @@ let rec pp_expr table env args =
            expected result type for the generic return. *)
         str "error" ++ paren (pp_java_string s)
     | MLdummy _ ->
-        str "__" (* TODO: define a benign applicable [__] value (separate PR);
-                    an [MLdummy] is passed around and applied at runtime, so
-                    it must NOT become a throwing expression. *)
+        (* [__()] is a generic method, so each occurrence is target-typed by
+           its context. Applied arguments are dropped, as in the OCaml
+           backend: extracted code is pure, and self-application of the dummy
+           only yields the dummy again, so skipping the arguments cannot
+           change the result. (Emitting the application would not compile
+           anyway: a receiver position is not a poly context.) *)
+        str "__()"
     | MLmagic a ->
         pp_expr table env [] a
     | MLaxiom s ->
@@ -423,6 +432,20 @@ let pp_struct table =
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
     str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++
+    fnl() ++ fnl() ++
+    (* The dummy value replacing erased logical content ([MLdummy]). It is
+       passed around and may even be applied at runtime, so it must be a
+       benign value, never a throwing expression: self-application returns
+       the value itself (same trick as the OCaml backend's [__]). *)
+    str "static final Function<Object, Object> __dummy = new Function<Object, Object>() {" ++
+    fnl() ++
+    str "  public Object apply(Object x) { return this; }" ++
+    fnl() ++
+    str "};" ++
+    fnl() ++ fnl() ++
+    str "@SuppressWarnings(\"unchecked\")" ++
+    fnl() ++
+    str "static <A> A __() { return (A) __dummy; }" ++
     fnl() ++ fnl() ++
     prlist_strict pp_sel structure ++
     str "}" ++ fnl()
