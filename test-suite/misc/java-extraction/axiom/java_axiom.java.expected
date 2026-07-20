@@ -1,0 +1,26 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+public interface value {}
+public static class A implements value {
+  
+  A() {
+    }
+    
+  }
+
+public static class B implements value {
+  
+  B() {
+    }
+    
+  }
+
+static value mystery = error("AXIOM TO BE REALIZED (axiom.mystery)");
+
+}

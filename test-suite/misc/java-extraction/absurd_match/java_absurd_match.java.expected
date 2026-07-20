@@ -1,0 +1,48 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+public interface empty {}
+public interface result {}
+public static class Ok implements result {
+  
+  Ok() {
+    }
+    
+  }
+
+public static class Ng implements result {
+  
+  Ng() {
+    }
+    
+  }
+
+public interface shape {}
+public static class Leaf implements shape {
+  
+  Leaf() {
+    }
+    
+  }
+
+public static class Wrap implements shape {
+  final empty Wrap0;
+  
+  Wrap(empty Wrap0) {
+    this.Wrap0 = Wrap0;
+    }
+    
+  }
+
+static Function<shape, result> from_shape = s ->
+  (s instanceof Leaf) ? new Ok()
+  : (s instanceof Wrap) ? error("absurd case")
+  : error("non-exhaustive match")
+  ;
+
+}

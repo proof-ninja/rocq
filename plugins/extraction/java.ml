@@ -40,6 +40,26 @@ let preamble _ _ comment _ _ =
 let comma = fun _ -> str ", "
 let paren = pp_par true
 
+(* Prints [s] as a Java string literal. [Pp.qs] escapes for OCaml, whose
+   conventions differ from Java's (e.g. decimal [\255] escapes).
+   Note: [\uXXXX] escapes are translated before Java lexes the file (JLS 3.3),
+   so line terminators, quotes and backslashes must be handled by the explicit
+   cases below and never reach the [\u] fallback. *)
+let pp_java_string s =
+  let buf = Buffer.create (String.length s + 2) in
+  Buffer.add_char buf '"';
+  String.iter (fun c -> match c with
+    | '"'  -> Buffer.add_string buf {|\"|}
+    | '\\' -> Buffer.add_string buf {|\\|}
+    | '\n' -> Buffer.add_string buf {|\n|}
+    | '\r' -> Buffer.add_string buf {|\r|}
+    | '\t' -> Buffer.add_string buf {|\t|}
+    | c when Char.code c < 0x20 ->
+        Buffer.add_string buf (Printf.sprintf {|\u%04x|} (Char.code c))
+    | c -> Buffer.add_char buf c) s;
+  Buffer.add_char buf '"';
+  str (Buffer.contents buf)
+
 
 let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
@@ -83,14 +103,9 @@ let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x 
 let pp_letin x def body = (* let(def, x -> body), where [let] is a defined function *)
   hv 0 (hv 0 (str "let" ++ paren (def ++ str ", " ++ x ++ str " ->" ++ spc() ++ hov 0 body)))
 
-let pp_ids_pat table ids env = function
-  | Pwild -> str "_"
-  | Prel n -> Id.print (get_db_name n env)
-  | _ -> assert false
-
-let pp_gen_pat table ids env = function
-  | Pcons (r, l) -> pp_global_name table Cons r, (List.map (pp_ids_pat table ids env) l)
-  | Pusual r -> pp_global_name table Cons r, (List.map Id.print ids)
+let pp_gen_pat table = function
+  | Pusual r -> pp_global_name table Cons r
+  | Pcons _ -> user_err Pp.(str "Cannot handle deep patterns in Java yet.")
   | Ptuple _ -> user_err Pp.(str "Cannot handle tuple patterns in Java yet.")
   | Pwild | Prel _ -> assert false (* catch-all: handled in pp_pat_branches *)
 
@@ -124,21 +139,22 @@ let rec pp_expr table env args =
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
     | MLexn s ->
-        (* An [MLexn] may be applied, but I don't really care. *)
-        paren (str "error " ++ qs s)
+        (* Applied arguments are dropped: [error] throws before any
+           application could happen, and the surrounding context supplies the
+           expected result type for the generic return. *)
+        str "error" ++ paren (pp_java_string s)
     | MLdummy _ ->
-        str "__" (* An [MLdummy] may be applied, but I don't really care. *)
+        str "__" (* TODO: define a benign applicable [__] value (separate PR);
+                    an [MLdummy] is passed around and applied at runtime, so
+                    it must NOT become a throwing expression. *)
     | MLmagic a ->
         pp_expr table env [] a
-    | MLaxiom s -> paren (str "error \"AXIOM TO BE REALIZED (" ++ str s ++ str ")\"")
-    | MLuint _ ->
-      paren (str "Prelude.error \"EXTRACTION OF UINT NOT IMPLEMENTED\"")
-    | MLfloat _ ->
-      paren (str "Prelude.error \"EXTRACTION OF FLOAT NOT IMPLEMENTED\"")
-    | MLstring _ ->
-      paren (str "Prelude.error \"EXTRACTION OF STRING NOT IMPLEMENTED\"")
-    | MLparray _ ->
-            paren (str "Prelude.error \"EXTRACTION OF PARRAY NOT IMPLEMENTED\"")
+    | MLaxiom s ->
+        str "error" ++ paren (pp_java_string ("AXIOM TO BE REALIZED (" ^ s ^ ")"))
+    | MLuint _ -> user_err Pp.(str "Cannot handle primitive integers in Java yet.")
+    | MLfloat _ -> user_err Pp.(str "Cannot handle primitive floats in Java yet.")
+    | MLstring _ -> user_err Pp.(str "Cannot handle primitive strings in Java yet.")
+    | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
 
 and pp_fix table env i (ids,bl) args =
       prvect_with_sep
@@ -155,7 +171,7 @@ and pp_one_pat table env exp (ids,p,t) =
   let n = List.length ids in
   let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
   let ids_field = List.rev ids' in
-  let constr, _instance = pp_gen_pat table (List.map id_of_mlid ids) env p in
+  let constr = pp_gen_pat table p in
   let body = pp_expr table env' [] t in
   let cast_exp = paren (paren (str constr) ++ exp) in
   let wrapped = List.fold_right
