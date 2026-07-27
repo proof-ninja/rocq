@@ -6,6 +6,13 @@ static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
 
 static <A> A error(String msg) { throw new RuntimeException(msg); }
 
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
 public interface nat {}
 public static class O implements nat {
   
