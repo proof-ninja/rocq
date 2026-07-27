@@ -43,6 +43,12 @@ jobs:
       - name: 🔭 Checkout code
         uses: actions/checkout@v4
 
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
       - name: 🐫 Setup OCaml
         uses: ocaml/setup-ocaml@v3
         with:
