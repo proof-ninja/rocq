@@ -225,9 +225,9 @@ let rec pp_expr table env args =
     | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
 
 and pp_fix table env i (ids,bl) args =
-  assert (Array.length ids = 1);
-  assert (Array.length bl = 1);
-  assert (Int.equal i 0);
+  if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
+          && Int.equal i 0)
+  then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
   let k = List.length args in
   record_fix_arity k;
   str "fix" ++ int k ++
