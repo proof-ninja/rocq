@@ -181,6 +181,11 @@ let rec pp_expr table env args =
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
         apply (pp_abst (pp_expr table env' [] a') (List.rev fl))
     | MLletin (id,a1,a2) ->
+        (* If [a1] is already an application of a fix (a computed value,
+           not the bare recursive function) and the let-bound variable is
+           used more than once below, this substitution duplicates the
+           recursive computation itself — it will be re-executed once per
+           use, not just re-printed as source text. *)
         if is_fix_head a1 then pp_expr table env args (ast_subst a1 a2)
         else
           let i,env' = push_vars [id_of_mlid id] env in
