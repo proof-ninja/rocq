@@ -13,6 +13,11 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
 static <A1, A2, R>
 R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
 a1, A2
@@ -82,5 +87,13 @@ static Function<natlist, natlist> rev_pair = l -> fix2(go -> l0 -> acc ->
   : error("non-exhaustive match"))
   , l, ((natlist) new Nil())), ((natlist) new Nil()))
   ;
+
+static Function<natlist, natlist> rev_onto = fix1(go -> acc -> l ->
+  ((l instanceof Nil) ? acc
+  : (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
+                          let(((Cons)l).Cons1, xs ->
+                          go.apply(((natlist) new Cons(x, acc))).apply(xs)))
+  : error("non-exhaustive match"))
+  , ((natlist) new Nil()));
 
 }

@@ -51,5 +51,11 @@ public class DriverLocalFix {
     assertList("[3; 2; 1]", Main.rev_acc.apply(build(1, 2, 3)).apply(new Main.Nil()));
     assertList("[]", Main.rev_acc.apply(build()).apply(new Main.Nil()));
     assertList("[4; 5; 6]", Main.rev_pair.apply(build(4, 5, 6)));
+
+    // One argument applied at the call site: fix1. The partial application
+    // is evaluated once at class-init time, so it must be reusable.
+    assertList("[3; 2; 1]", Main.rev_onto.apply(build(1, 2, 3)));
+    assertList("[]", Main.rev_onto.apply(build()));
+    assertList("[2; 1]", Main.rev_onto.apply(build(1, 2)));
   }
 }
