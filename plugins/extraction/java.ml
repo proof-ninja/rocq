@@ -108,11 +108,65 @@ let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x 
 let pp_letin x def body = (* let(def, x -> body), where [let] is a defined function *)
   hv 0 (hv 0 (str "let" ++ paren (def ++ str ", " ++ x ++ str " ->" ++ spc() ++ hov 0 body)))
 
+let kn_of_ind r = let open GlobRef in match r.glob with
+  | IndRef (kn,_) -> MutInd.user kn
+  | _ -> assert false
+
+let get_ind r = let open GlobRef in match r.glob with
+  | IndRef _ -> r
+  | ConstructRef (ind,_) -> { glob = IndRef ind; inst = r.inst }
+  | _ -> assert false
+
 let pp_gen_pat table = function
   | Pusual r -> pp_global_name table Cons r
   | Pcons _ -> user_err Pp.(str "Cannot handle deep patterns in Java yet.")
   | Ptuple _ -> user_err Pp.(str "Cannot handle tuple patterns in Java yet.")
   | Pwild | Prel _ -> assert false (* catch-all: handled in pp_pat_branches *)
+
+let fix_arities = ref Int.Set.empty
+
+let reset_fix_arities () =
+  fix_arities := Int.Set.empty
+
+let record_fix_arity k =
+  fix_arities := Int.Set.add k !fix_arities
+
+let rec is_fix_head = function
+  | MLfix _ -> true
+  | MLapp (f, _) -> is_fix_head f
+  | MLmagic a -> is_fix_head a
+  | _ -> false
+
+let pp_fix_helper k =
+  let tyvar i = str "A" ++ int i in
+  let arg i = str "a" ++ int i in
+  let xarg i = str "x" ++ int i in
+  let rec fn_type i =
+    if Int.equal i (k + 1) then str "R"
+    else str "Function<" ++ tyvar i ++ str ", " ++ fn_type (i+1) ++ str ">"
+  in
+  let type_params =
+    if Int.equal k 0 then str "<A1, R>"
+    else str "<" ++ prlist_with_sep comma tyvar (List.init k (fun i -> i+1)) ++ str ", R>"
+  in
+  let apply_args prefix =
+    prlist_strict (fun i -> str ".apply" ++ paren (prefix i)) (List.init k (fun i -> i+1))
+  in
+  if Int.equal k 0 then
+    str "static <A1, R> Function<A1, R> fix0(Function<Function<A1, R>, Function<A1, R>> gen) {" ++ fnl() ++
+    str "  return a1 -> fix1(gen, a1);" ++ fnl() ++
+    str "}" ++ fnl2()
+  else
+    str "static " ++ type_params ++ spc() ++ str "R fix" ++ int k ++
+    paren
+      (str "Function<" ++ fn_type 1 ++ str ", " ++ fn_type 1 ++ str "> gen, " ++
+       prlist_with_sep comma (fun i -> tyvar i ++ spc() ++ arg i) (List.init k (fun i -> i+1))) ++
+    str " {" ++ fnl() ++
+    str "  return gen.apply(" ++
+    prlist_with_sep (fun () -> str " -> ") xarg (List.init k (fun i -> i+1)) ++
+    str " -> fix" ++ int k ++ paren (str "gen, " ++ prlist_with_sep comma xarg (List.init k (fun i -> i+1))) ++
+    str ")" ++ apply_args arg ++ str ";" ++ fnl() ++
+    str "}" ++ fnl2()
 
 let rec pp_expr table env args =
   let apply st = pp_app st args in
@@ -127,20 +181,30 @@ let rec pp_expr table env args =
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
         apply (pp_abst (pp_expr table env' [] a') (List.rev fl))
     | MLletin (id,a1,a2) ->
-        let i,env' = push_vars [id_of_mlid id] env in
-        let pp_id = pr_id (List.hd i)
-        and pp_a1 = pp_expr table env [] a1
-        and pp_a2 = pp_expr table env' [] a2 in
-        hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
+        (* If [a1] is already an application of a fix (a computed value,
+           not the bare recursive function) and the let-bound variable is
+           used more than once below, this substitution duplicates the
+           recursive computation itself — it will be re-executed once per
+           use, not just re-printed as source text. *)
+        if is_fix_head a1 then pp_expr table env args (ast_subst a1 a2)
+        else
+          let i,env' = push_vars [id_of_mlid id] env in
+          let pp_id = pr_id (List.hd i)
+          and pp_a1 = pp_expr table env [] a1
+          and pp_a2 = pp_expr table env' [] a2 in
+          hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
     | MLglob r ->
         apply (pp_global table Term r)
     | MLcons (_,r,args') -> (* [r] : a name of a constructor *)
         assert (List.is_empty args);
-        str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args')
+        let cons = str "new " ++ pp_global table Cons r ++ paren (prlist_with_sep comma (pp_expr table env []) args') in
+        let ind = get_ind r in
+        if is_custom ind || is_inline_custom ind then cons
+        else paren (paren (pp_global table Type ind) ++ spc () ++ cons)
     | MLtuple _ -> user_err Pp.(str "Cannot handle tuples in Java yet.")
     | MLcase (_,t, pv) ->
-          pp_pat table env t pv
-    | MLfix (i,ids,defs) -> 
+          apply (paren (pp_pat table env t pv))
+    | MLfix (i,ids,defs) ->
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_fix table env' i (Array.of_list (List.rev ids'),defs) args
     | MLexn s ->
@@ -157,7 +221,7 @@ let rec pp_expr table env args =
            anyway: a receiver position is not a poly context.) *)
         str "__()"
     | MLmagic a ->
-        pp_expr table env [] a
+        pp_expr table env args a
     | MLaxiom s ->
         str "error" ++ paren (pp_java_string ("AXIOM TO BE REALIZED (" ^ s ^ ")"))
     | MLuint _ -> user_err Pp.(str "Cannot handle primitive integers in Java yet.")
@@ -166,12 +230,17 @@ let rec pp_expr table env args =
     | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
 
 and pp_fix table env i (ids,bl) args =
-      prvect_with_sep
-        (fun () -> str ";" ++ fnl() ++ str "var ")
-        (fun (fi,ti) -> pr_id fi ++ str " = " ++ pp_expr table env [] ti)
-        (Array.map2 (fun id b -> (id,b)) ids bl) ++
-      fnl () ++
-      hov 2 (str ";" ++ fnl() ++ pp_app (pr_id ids.(i)) args)
+  if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
+          && Int.equal i 0)
+  then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
+  let k = List.length args in
+  record_fix_arity k;
+  str "fix" ++ int k ++
+    paren
+      (pr_id ids.(0) ++ str " -> " ++ pp_expr table env [] bl.(0) ++
+       (match args with
+        | [] -> mt ()
+        | _ -> str ", " ++ prlist_with_sep comma identity args))
 
 and pp_one_pat table env exp (ids,p,t) =
   (* push_vars after List.rev_map makes the head of ids' correspond to
@@ -269,15 +338,6 @@ let pp_global_name table k r = str (Common.pp_global table k r)
 
 let pp_parameters l =
   (pp_boxed_tuple pp_tvar l ++ space_if (not (List.is_empty l)))
-
-let kn_of_ind r = let open GlobRef in match r.glob with
-  | IndRef (kn,_) -> MutInd.user kn
-  | _ -> assert false
-
-let get_ind r = let open GlobRef in match r.glob with
-  | IndRef _ -> r
-  | ConstructRef (ind,_) -> { glob = IndRef ind; inst = r.inst }
-  | _ -> assert false
 
 let pp_one_field table r i = function
   | Some r' -> pp_global_with_key table Term (kn_of_ind (get_ind r)) r'
@@ -428,6 +488,12 @@ let pp_struct table =
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in
   fun structure ->
+    reset_fix_arities ();
+    let body = prlist_strict pp_sel structure in
+    let arities =
+      if Int.Set.mem 0 !fix_arities then Int.Set.add 1 !fix_arities
+      else !fix_arities
+    in
     str "class Main {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
@@ -447,7 +513,8 @@ let pp_struct table =
     fnl() ++
     str "static <A> A __() { return (A) __dummy; }" ++
     fnl() ++ fnl() ++
-    prlist_strict pp_sel structure ++
+    Int.Set.fold (fun k pp -> pp ++ pp_fix_helper k) arities (mt ()) ++
+    body ++
     str "}" ++ fnl()
   
 let file_naming state mp = file_of_modfile (State.get_table state) mp

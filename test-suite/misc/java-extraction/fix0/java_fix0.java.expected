@@ -1,0 +1,124 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, R> Function<A1, R> fix0(Function<Function<A1, R>, Function<A1, R>> gen) {
+  return a1 -> fix1(gen, a1);
+}
+
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface natlist {}
+public static class Nil implements natlist {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements natlist {
+  final nat Cons0;
+  final natlist Cons1;
+  
+  Cons(nat Cons0, natlist Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+public interface mode {}
+public static class Reverse implements mode {
+  
+  Reverse() {
+    }
+    
+  }
+
+public static class Keep implements mode {
+  
+  Keep() {
+    }
+    
+  }
+
+static Function<natlist, Function<natlist, natlist>>
+app;
+static {
+app = l1 -> l2 ->
+((l1 instanceof Nil) ? l2
+: (l1 instanceof Cons) ? let(((Cons)l1).Cons0, x ->
+                         let(((Cons)l1).Cons1, xs ->
+                         ((natlist) new Cons(x, app.apply(xs).apply(l2)))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<mode, Function<natlist, Function<natlist, natlist>>>
+  rev_selector = m ->
+  ((m instanceof Reverse) ? fix0(go -> l -> acc ->
+     ((l instanceof Nil) ? acc
+     : (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
+                             let(((Cons)l).Cons1, xs ->
+                             go.apply(xs).apply(((natlist) new Cons(x, acc)))))
+     : error("non-exhaustive match"))
+     )
+  : (m instanceof Keep) ? app
+  : error("non-exhaustive match"))
+  ;
+
+static Function<Function<natlist, Function<natlist, natlist>>, Function<nat, Function<natlist, natlist>>>
+iterate;
+static {
+iterate = f -> n -> l ->
+((n instanceof O) ? l
+: (n instanceof S) ? let(((S)n).S0, k ->
+                     iterate.apply(f).apply(k).apply(f.apply(l).apply(((natlist)
+                                                               new Nil()))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<nat, Function<natlist, natlist>> rev_iterated = n -> input ->
+  iterate.apply(fix0(go -> l -> acc ->
+         ((l instanceof Nil) ? acc
+         : (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
+                                 let(((Cons)l).Cons1, xs ->
+                                 go.apply(xs).apply(((natlist)
+                                             new Cons(x, acc)))))
+         : error("non-exhaustive match"))
+         )).apply(n).apply(input)
+  ;
+
+}

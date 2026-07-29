@@ -30,8 +30,8 @@ public static class S implements nat {
     
   }
 
-static nat two = new S(new S(new O()));
+static nat two = ((nat) new S(((nat) new S(((nat) new O())))));
 
-static nat three = new S(two);
+static nat three = ((nat) new S(two));
 
 }

@@ -36,10 +36,10 @@ public static class Blue implements color {
   }
 
 static Function<color, color> rotate = c ->
-  (c instanceof Red) ? new Green()
-  : (c instanceof Green) ? new Blue()
-  : (c instanceof Blue) ? new Red()
-  : error("non-exhaustive match")
+  ((c instanceof Red) ? ((color) new Green())
+  : (c instanceof Green) ? ((color) new Blue())
+  : (c instanceof Blue) ? ((color) new Red())
+  : error("non-exhaustive match"))
   ;
 
 }
