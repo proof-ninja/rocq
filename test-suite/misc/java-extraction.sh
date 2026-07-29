@@ -14,3 +14,4 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" fix0
 "$self_dir/java-extraction/run-case.sh" poly_list
 "$self_dir/java-extraction/run-case.sh" poly_head
+"$self_dir/java-extraction/run-case.sh" corelib_list
