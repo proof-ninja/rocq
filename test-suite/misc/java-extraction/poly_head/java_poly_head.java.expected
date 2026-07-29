@@ -1,0 +1,74 @@
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface list {}
+public static class Nil implements list {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements list {
+  final Object Cons0;
+  final list Cons1;
+  
+  Cons(Object Cons0, list Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<Object, Function<list, Object>> head = d -> l ->
+  ((l instanceof Nil) ? d
+  : (l instanceof Cons) ? let(((Cons)l).Cons0, x -> x)
+  : error("non-exhaustive match"))
+  ;
+
+static nat
+  three = ((nat) head.apply(((nat)
+                     new O())).apply(((list) new Cons(((nat) new S(((nat)
+                              new S(((nat) new S(((nat)
+                              new O()))))))), ((list) new Nil())))));
+
+static Function<list, nat> succ_head = l ->
+  let(head.apply(((nat) new O())).apply(l), x -> ((nat) new S(((nat) x))))
+  ;
+
+static Function<list, nat> first_or_zero = l ->
+  ((l instanceof Nil) ? ((nat) new O())
+  : (l instanceof Cons) ? let(((nat) ((Cons)l).Cons0), x -> x)
+  : error("non-exhaustive match"))
+  ;
+
+}
