@@ -534,11 +534,14 @@ let mono_filename f =
           else f
         in
         let id =
-          if lang () != Haskell then default_id
-          else
-            try Id.of_string (Filename.basename f)
-            with UserError _ ->
-              user_err Pp.(str "Extraction: provided filename is not a valid identifier")
+          match lang () with
+          | Haskell | Java ->
+            (* These backends name a top-level container (module / class)
+               after the file, so the file name must be a valid identifier. *)
+            (try Id.of_string (Filename.basename f)
+             with UserError _ ->
+               user_err Pp.(str "Extraction: provided filename is not a valid identifier"))
+          | Ocaml | Scheme | JSON -> default_id
         in
         let f =
           if Filename.is_relative f then

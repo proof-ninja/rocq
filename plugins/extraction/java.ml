@@ -26,17 +26,49 @@ let keywords =
     "char"; "final"; "interface"; "static"; "void";
     "class"; "finally"; "long"; "strictfp"; "volatile";
     "const"; "float"; "native"; "super"; "while"; "_";
-    (* not Java keywords, but names of the generated [class Main] helpers:
+    (* not Java keywords, but names of the generated wrapper class's helpers:
        reserve them so extracted identifiers get renamed instead of clashing *)
     "let"; "error"; "__"; "__dummy" ]
     Id.Set.empty
+
+(*s The name of the generated top-level wrapper class.
+
+    The class must be named after the file being generated, but the shared
+    [pp_struct] signature (see [Miniml.language_descr]) carries no file
+    information: only [preamble] receives the module id. We pass it through
+    this ref instead, set by [preamble] and read by [pp_struct];
+    [Extract_env.print_structure_to_file] always calls the former immediately
+    before the latter when printing real output, so the ref holds the right
+    value by the time [pp_struct] reads it. Same side-channel pattern as
+    [fix_arities] below. *)
+let top_class_name = ref "Main"
+
+let is_java_ident_start c =
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_' || c = '$'
+
+let is_java_ident_part c = is_java_ident_start c || (c >= '0' && c <= '9')
+
+let java_class_name id =
+  let s = Id.to_string id in
+  let valid =
+    not (String.is_empty s)
+    && is_java_ident_start s.[0]
+    && String.for_all is_java_ident_part s
+    && not (Id.Set.mem id keywords)
+  in
+  if not valid then
+    user_err Pp.(str "Extraction: " ++ Id.print id ++
+                 str " cannot be used as a Java class name; \
+                      choose a different output file name.");
+  s
 
 let pp_comment s = str "// " ++ s ++ fnl ()
 let pp_header_comment = function
   | None -> mt ()
   | Some com -> pp_comment com ++ fnl () ++ fnl ()
 
-let preamble _ _ comment _ _ =
+let preamble _ mod_name comment _ _ =
+  top_class_name := java_class_name mod_name;
   pp_header_comment comment ++
   str "import java.util.function.Function;" ++ fnl() ++ fnl()
 
@@ -494,7 +526,7 @@ let pp_struct table =
       if Int.Set.mem 0 !fix_arities then Int.Set.add 1 !fix_arities
       else !fix_arities
     in
-    str "class Main {" ++ fnl() ++ fnl() ++
+    str "class " ++ str !top_class_name ++ str " {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
     str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++

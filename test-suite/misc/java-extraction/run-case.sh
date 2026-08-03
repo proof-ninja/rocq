@@ -111,6 +111,25 @@ compile_and_run_generated_files() {
   done
 }
 
+# Every generated file must declare a distinct top-level class, so that all of
+# a case's output can be compiled in a single javac invocation.
+compile_generated_files_together() {
+  class_output="$classes_dir/_all"
+  mkdir -p "$class_output"
+  set --
+  for generated in "$generated_dir"/*.java; do
+    if [ -f "$generated" ]; then
+      set -- "$@" "$generated"
+    fi
+  done
+  for source in "$expected_dir"/*.java; do
+    if [ -f "$source" ]; then
+      set -- "$@" "$source"
+    fi
+  done
+  javac -d "$class_output" "$@"
+}
+
 trap cleanup EXIT INT TERM
 
 cleanup
@@ -120,5 +139,6 @@ run_coqc
 
 check_generated_files
 compile_and_run_generated_files
+compile_generated_files_together
 
 cleanup
