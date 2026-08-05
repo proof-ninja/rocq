@@ -266,7 +266,7 @@ and pp_module_expr table = function
   | MEident _ | MEapply _ -> assert false
       (* should be expansed in extract_env *)
 
-let pp_struct table mls =
+let pp_struct table _ mls =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     let p = prlist_with_sep pr_comma identity
       (List.concat (List.map (pp_structure_elem table) sel)) in

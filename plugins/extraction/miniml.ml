@@ -271,7 +271,7 @@ type 's language_descr = {
   preamble :
     's -> Id.t -> Pp.t option -> DirPath.Set.t -> unsafe_needs ->
     Pp.t;
-  pp_struct : 's -> ml_structure -> Pp.t;
+  pp_struct : 's -> Id.t -> ml_structure -> Pp.t;
 
   (* Concerning a possible interface file *)
   sig_suffix : string option;

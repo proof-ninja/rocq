@@ -31,18 +31,6 @@ let keywords =
     "let"; "error"; "__"; "__dummy" ]
     Id.Set.empty
 
-(*s The name of the generated top-level wrapper class.
-
-    The class must be named after the file being generated, but the shared
-    [pp_struct] signature (see [Miniml.language_descr]) carries no file
-    information: only [preamble] receives the module id. We pass it through
-    this ref instead, set by [preamble] and read by [pp_struct];
-    [Extract_env.print_structure_to_file] always calls the former immediately
-    before the latter when printing real output, so the ref holds the right
-    value by the time [pp_struct] reads it. Same side-channel pattern as
-    [fix_arities] below. *)
-let top_class_name = ref "Main"
-
 let is_java_ident_start c =
   (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_' || c = '$'
 
@@ -67,8 +55,7 @@ let pp_header_comment = function
   | None -> mt ()
   | Some com -> pp_comment com ++ fnl () ++ fnl ()
 
-let preamble _ mod_name comment _ _ =
-  top_class_name := java_class_name mod_name;
+let preamble _ _ comment _ _ =
   pp_header_comment comment ++
   str "import java.util.function.Function;" ++ fnl() ++ fnl()
 
@@ -515,7 +502,7 @@ and pp_module_expr table = function
   | MEident _ | MEapply _ -> assert false
       (* should be expanded in extract_env *)
 
-let pp_struct table =
+let pp_struct table id =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in
@@ -526,7 +513,7 @@ let pp_struct table =
       if Int.Set.mem 0 !fix_arities then Int.Set.add 1 !fix_arities
       else !fix_arities
     in
-    str "class " ++ str !top_class_name ++ str " {" ++ fnl() ++ fnl() ++
+    str "class " ++ str (java_class_name id) ++ str " {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
     str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++

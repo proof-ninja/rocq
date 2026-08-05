@@ -567,7 +567,7 @@ let print_one_decl table struc mp decl =
   let d = descr () in
   let () = State.reset table in
   let table = State.set_phase table Pre in
-  ignore (d.pp_struct table struc);
+  ignore (d.pp_struct table default_id struc);
   let table = State.set_phase table Impl in
   let ans = State.with_visibility table mp [] begin fun table ->
     d.pp_decl table decl
@@ -620,7 +620,7 @@ let print_structure_to_file table (fn,si,mo) dry struc =
   in
   (* First, a dry run, for computing objects to rename or duplicate *)
   let table = State.set_phase table Pre in
-  ignore (d.pp_struct table struc);
+  ignore (d.pp_struct table mo struc);
   let opened = opened_libraries table in
   (* Print the implementation *)
   let cout = if dry then None else Option.map open_out fn in
@@ -630,7 +630,7 @@ let print_structure_to_file table (fn,si,mo) dry struc =
     (* The real printing of the implementation *)
     let table = State.set_phase table Impl in
     pp_with ft (d.preamble table mo comment opened unsafe_needs);
-    pp_with ft (d.pp_struct table struc);
+    pp_with ft (d.pp_struct table mo struc);
     Format.pp_print_flush ft ();
     Option.iter close_out cout;
   with reraise ->
