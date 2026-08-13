@@ -26,6 +26,9 @@ let keywords =
     "char"; "final"; "interface"; "static"; "void";
     "class"; "finally"; "long"; "strictfp"; "volatile";
     "const"; "float"; "native"; "super"; "while"; "_";
+    (* not keywords, but JLS 3.8 excludes BooleanLiteral and NullLiteral
+       from Identifier as well *)
+    "true"; "false"; "null";
     (* not Java keywords, but names of the generated wrapper class's helpers:
        reserve them so extracted identifiers get renamed instead of clashing *)
     "let"; "error"; "__"; "__dummy" ]
@@ -36,6 +39,15 @@ let is_java_ident_start c =
 
 let is_java_ident_part c = is_java_ident_start c || (c >= '0' && c <= '9')
 
+(* JLS 3.8 defines a class name as a TypeIdentifier: an Identifier that is not
+   one of these five contextual keywords. They are deliberately kept out of
+   [keywords], which governs all extracted identifiers: they are perfectly
+   legal as variable or method names, and only forbidden as type names. *)
+let restricted_type_identifiers =
+  List.fold_right (fun s -> Id.Set.add (Id.of_string s))
+    [ "permits"; "record"; "sealed"; "var"; "yield" ]
+    Id.Set.empty
+
 let java_class_name id =
   let s = Id.to_string id in
   let valid =
@@ -43,6 +55,7 @@ let java_class_name id =
     && is_java_ident_start s.[0]
     && String.for_all is_java_ident_part s
     && not (Id.Set.mem id keywords)
+    && not (Id.Set.mem id restricted_type_identifiers)
   in
   if not valid then
     user_err Pp.(str "Extraction: " ++ Id.print id ++
