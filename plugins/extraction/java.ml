@@ -26,10 +26,42 @@ let keywords =
     "char"; "final"; "interface"; "static"; "void";
     "class"; "finally"; "long"; "strictfp"; "volatile";
     "const"; "float"; "native"; "super"; "while"; "_";
-    (* not Java keywords, but names of the generated [class Main] helpers:
+    (* not keywords, but JLS 3.8 excludes BooleanLiteral and NullLiteral
+       from Identifier as well *)
+    "true"; "false"; "null";
+    (* not Java keywords, but names of the generated wrapper class's helpers:
        reserve them so extracted identifiers get renamed instead of clashing *)
     "let"; "error"; "__"; "__dummy" ]
     Id.Set.empty
+
+let is_java_ident_start c =
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_' || c = '$'
+
+let is_java_ident_part c = is_java_ident_start c || (c >= '0' && c <= '9')
+
+(* JLS 3.8 defines a class name as a TypeIdentifier: an Identifier that is not
+   one of these five contextual keywords. They are deliberately kept out of
+   [keywords], which governs all extracted identifiers: they are perfectly
+   legal as variable or method names, and only forbidden as type names. *)
+let restricted_type_identifiers =
+  List.fold_right (fun s -> Id.Set.add (Id.of_string s))
+    [ "permits"; "record"; "sealed"; "var"; "yield" ]
+    Id.Set.empty
+
+let java_class_name id =
+  let s = Id.to_string id in
+  let valid =
+    not (String.is_empty s)
+    && is_java_ident_start s.[0]
+    && String.for_all is_java_ident_part s
+    && not (Id.Set.mem id keywords)
+    && not (Id.Set.mem id restricted_type_identifiers)
+  in
+  if not valid then
+    user_err Pp.(str "Extraction: " ++ Id.print id ++
+                 str " cannot be used as a Java class name; \
+                      choose a different output file name.");
+  s
 
 let pp_comment s = str "// " ++ s ++ fnl ()
 let pp_header_comment = function
@@ -483,7 +515,7 @@ and pp_module_expr table = function
   | MEident _ | MEapply _ -> assert false
       (* should be expanded in extract_env *)
 
-let pp_struct table =
+let pp_struct table id =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in
@@ -494,7 +526,7 @@ let pp_struct table =
       if Int.Set.mem 0 !fix_arities then Int.Set.add 1 !fix_arities
       else !fix_arities
     in
-    str "class Main {" ++ fnl() ++ fnl() ++
+    str "class " ++ str (java_class_name id) ++ str " {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
     str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++

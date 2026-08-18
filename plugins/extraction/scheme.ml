@@ -223,7 +223,7 @@ and pp_module_expr table = function
   | MEident _ | MEapply _ -> assert false
       (* should be expanded in extract_env *)
 
-let pp_struct table =
+let pp_struct table _ =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in

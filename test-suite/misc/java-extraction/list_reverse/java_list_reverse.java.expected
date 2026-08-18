@@ -1,6 +1,6 @@
 import java.util.function.Function;
 
-class Main {
+class java_list_reverse {
 
 static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
 

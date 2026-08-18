@@ -1,21 +1,21 @@
 public class DriverMatchFailure {
-  static void assertRotate(Main.color input, Class<?> expected) {
-    Main.color actual = Main.rotate.apply(input);
+  static void assertRotate(java_match_failure.color input, Class<?> expected) {
+    java_match_failure.color actual = java_match_failure.rotate.apply(input);
     if (!expected.equals(actual.getClass())) {
       throw new AssertionError("expected " + expected.getName() + " but got " + actual.getClass().getName());
     }
   }
 
   public static void main(String[] args) {
-    assertRotate(new Main.Red(), Main.Green.class);
-    assertRotate(new Main.Green(), Main.Blue.class);
-    assertRotate(new Main.Blue(), Main.Red.class);
+    assertRotate(new java_match_failure.Red(), java_match_failure.Green.class);
+    assertRotate(new java_match_failure.Green(), java_match_failure.Blue.class);
+    assertRotate(new java_match_failure.Blue(), java_match_failure.Red.class);
 
     // A value that fits no constructor of the inductive type must raise the
     // explicit match failure, not an accidental ClassCastException.
-    Main.color alien = new Main.color() {};
+    java_match_failure.color alien = new java_match_failure.color() {};
     try {
-      Main.rotate.apply(alien);
+      java_match_failure.rotate.apply(alien);
       throw new AssertionError("expected a match failure but rotate returned normally");
     } catch (RuntimeException e) {
       if (!RuntimeException.class.equals(e.getClass())) {

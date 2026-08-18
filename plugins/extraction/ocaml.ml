@@ -817,7 +817,7 @@ let do_struct table f s =
   let p = prlist_sep_nonempty cut2 (fun x -> x) p in
   v 0 p ++ fnl ()
 
-let pp_struct table s = do_struct table (fun table e -> pp_structure_elem table e) s
+let pp_struct table _ s = do_struct table (fun table e -> pp_structure_elem table e) s
 
 let pp_signature table s = do_struct table (fun table e -> pp_specif table e) s
 
