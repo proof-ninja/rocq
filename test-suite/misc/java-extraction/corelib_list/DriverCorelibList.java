@@ -1,24 +1,24 @@
 public class DriverCorelibList {
-  static int natToInt(Main.nat n) {
+  static int natToInt(java_corelib_list.nat n) {
     int i = 0;
-    while (n instanceof Main.S) {
+    while (n instanceof java_corelib_list.S) {
       i++;
-      n = ((Main.S) n).S0;
+      n = ((java_corelib_list.S) n).S0;
     }
     return i;
   }
 
   // Elements come back erased (Cons0 is declared Object), so reading them
   // at type nat is the caller's (checked) cast.
-  static String show(Main.list l) {
+  static String show(java_corelib_list.list l) {
     StringBuilder sb = new StringBuilder("[");
     boolean first = true;
-    while (l instanceof Main.Cons) {
-      Main.Cons c = (Main.Cons) l;
+    while (l instanceof java_corelib_list.Cons) {
+      java_corelib_list.Cons c = (java_corelib_list.Cons) l;
       if (!first) {
         sb.append("; ");
       }
-      sb.append(natToInt((Main.nat) c.Cons0));
+      sb.append(natToInt((java_corelib_list.nat) c.Cons0));
       first = false;
       l = c.Cons1;
     }
@@ -33,14 +33,14 @@ public class DriverCorelibList {
   }
 
   public static void main(String[] args) {
-    check("doubled", "[1; 2; 1; 2]".equals(show(Main.doubled)));
+    check("doubled", "[1; 2; 1; 2]".equals(show(java_corelib_list.doubled)));
 
-    check("first is Some", Main.first instanceof Main.Some);
-    check("first value", natToInt((Main.nat) ((Main.Some) Main.first).Some0) == 1);
+    check("first is Some", java_corelib_list.first instanceof java_corelib_list.Some);
+    check("first value", natToInt((java_corelib_list.nat) ((java_corelib_list.Some) java_corelib_list.first).Some0) == 1);
 
-    check("swapped is Pair", Main.swapped instanceof Main.Pair);
-    Main.Pair p = (Main.Pair) Main.swapped;
-    check("swapped fst", natToInt((Main.nat) p.Pair0) == 1);
-    check("swapped snd", p.Pair1 instanceof Main.True);
+    check("swapped is Pair", java_corelib_list.swapped instanceof java_corelib_list.Pair);
+    java_corelib_list.Pair p = (java_corelib_list.Pair) java_corelib_list.swapped;
+    check("swapped fst", natToInt((java_corelib_list.nat) p.Pair0) == 1);
+    check("swapped snd", p.Pair1 instanceof java_corelib_list.True);
   }
 }

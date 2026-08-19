@@ -1,30 +1,30 @@
 public class DriverPolyHead {
-  static Main.nat intToNat(int n) {
-    Main.nat r = new Main.O();
+  static java_poly_head.nat intToNat(int n) {
+    java_poly_head.nat r = new java_poly_head.O();
     for (int i = 0; i < n; i++) {
-      r = new Main.S(r);
+      r = new java_poly_head.S(r);
     }
     return r;
   }
 
-  static int natToInt(Main.nat n) {
+  static int natToInt(java_poly_head.nat n) {
     int i = 0;
-    while (n instanceof Main.S) {
+    while (n instanceof java_poly_head.S) {
       i++;
-      n = ((Main.S) n).S0;
+      n = ((java_poly_head.S) n).S0;
     }
     return i;
   }
 
-  static Main.list build(int... xs) {
-    Main.list l = new Main.Nil();
+  static java_poly_head.list build(int... xs) {
+    java_poly_head.list l = new java_poly_head.Nil();
     for (int i = xs.length - 1; i >= 0; i--) {
-      l = new Main.Cons(intToNat(xs[i]), l);
+      l = new java_poly_head.Cons(intToNat(xs[i]), l);
     }
     return l;
   }
 
-  static void check(String name, int expected, Main.nat actual) {
+  static void check(String name, int expected, java_poly_head.nat actual) {
     int shown = natToInt(actual);
     if (expected != shown) {
       throw new AssertionError(name + ": expected " + expected + " but got " + shown);
@@ -32,10 +32,10 @@ public class DriverPolyHead {
   }
 
   public static void main(String[] args) {
-    check("three", 3, Main.three);
-    check("succ_head", 8, Main.succ_head.apply(build(7, 1)));
-    check("succ_head(nil)", 1, Main.succ_head.apply(build()));
-    check("first_or_zero", 7, Main.first_or_zero.apply(build(7, 1)));
-    check("first_or_zero(nil)", 0, Main.first_or_zero.apply(build()));
+    check("three", 3, java_poly_head.three);
+    check("succ_head", 8, java_poly_head.succ_head.apply(build(7, 1)));
+    check("succ_head(nil)", 1, java_poly_head.succ_head.apply(build()));
+    check("first_or_zero", 7, java_poly_head.first_or_zero.apply(build(7, 1)));
+    check("first_or_zero(nil)", 0, java_poly_head.first_or_zero.apply(build()));
   }
 }
