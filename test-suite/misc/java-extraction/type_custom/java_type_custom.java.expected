@@ -1,0 +1,27 @@
+import java.util.function.Function;
+
+class java_type_custom {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static java.math.BigInteger zero_big = java.math.BigInteger.ZERO;
+
+static Function<java.math.BigInteger, java.math.BigInteger>
+  inc_big = b -> b.add(java.math.BigInteger.ONE);
+
+static Function<java.math.BigInteger, java.math.BigInteger> inc2 = b ->
+  inc_big.apply(inc_big.apply(b))
+  ;
+
+static Function<java.math.BigInteger, java.math.BigInteger> inc2b = inc2;
+
+}

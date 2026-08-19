@@ -100,6 +100,14 @@ let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
   else str (Common.pp_global table k r)
 
+(* A type reference with a custom extraction prints the custom string, not
+   the name: Java cannot declare a type alias, so [Extract Constant] on a
+   type produces no declaration the name could refer to — inlined or not,
+   the string IS the type. As in the other backends, writing a string that
+   is valid in the chosen extraction language is the user's responsibility. *)
+let pp_type_global table r =
+  if is_custom r then str (find_custom r) else pp_global table Type r
+
 let pr_id id =
   str @@ String.map (fun c -> if c == '\'' then '$' else c) (Id.to_string id)
 
@@ -111,13 +119,13 @@ let pp_type table t =
        type, and [Object] is the weakest valid Java type. Casts back to
        concrete types are inserted at use sites by the printer. *)
     | Tvar _ -> str "Object"
-    | Tglob (r,[]) -> pp_global table Type r
+    | Tglob (r,[]) -> pp_type_global table r
     | Tglob (gr,l)
         when not (keep_singleton ()) && Rocqlib.check_ref sig_type_name gr.glob ->
         pp_tuple pp_rec l
     (* Erasure makes every generated class non-generic, so a type
        application prints as the bare class name. *)
-    | Tglob (r,_) -> pp_global table Type r
+    | Tglob (r,_) -> pp_type_global table r
     | Tarr (t1,t2) ->
         str "Function<" ++ pp_rec t1 ++ str ", " ++ pp_rec t2++ str ">"
     (* Both stand for "no informative type here". *)
@@ -764,8 +772,11 @@ let pp_decl table = function
       let i = expand_ind_aliases i in
       record_ind i; pp_mind table i
   | Dtype (r, _, t) ->
-      if is_custom r then
-        user_err Pp.(str "Cannot handle custom extraction of types in Java yet.")
+      (* A custom type ([Extract Constant t => "..."]) has no [ml_type]
+         body: the string itself is the expansion. Emit no declaration and
+         leave references unregistered — type positions print the custom
+         string via [pp_type_global]. *)
+      if is_custom r then mt ()
       else
         let body = match t with
           (* An unrealized axiom type ([Axiom t : Type]) has no body; its
