@@ -354,7 +354,7 @@ let rec peel_lams t k =
 let rec type_of_expr tenv = function
   | MLrel n -> (try List.nth tenv (n - 1) with Failure _ | Invalid_argument _ -> None)
   | MLglob r -> lookup_const_type r
-  | MLcons (typ, _, _) -> Some typ
+  | MLcons (typ, _, _) -> Some (expand_aliases typ)
   | MLapp (f, args) ->
       (match type_of_expr tenv f with
        | Some ft -> strip_arrows ft (List.length args)
@@ -471,6 +471,9 @@ let rec pp_expr table env tenv expected args =
         apply_cast (lookup_const_type r) (pp_global table Term r)
     | MLcons (typ,r,args') -> (* [r] : a name of a constructor *)
         assert (List.is_empty args);
+        (* The annotation's type arguments may mention aliases (e.g.
+           [list natop]); they flow into field types via [type_subst_list]. *)
+        let typ = expand_aliases typ in
         let arg_tys = match constructor_arg_types r, typ with
           | Some tys, Tglob (_, targs) when Int.equal (List.length tys) (List.length args') ->
               List.map (fun ty -> Some (type_subst_list targs ty)) tys
@@ -490,6 +493,9 @@ let rec pp_expr table env tenv expected args =
     | MLcase (typ,t, pv) ->
         (* No cast around the conditional chain: each branch body receives
            the expected type and conforms on its own. *)
+        (* Same as MLcons: expand aliases in the annotation's type
+           arguments before they reach field types. *)
+        let typ = expand_aliases typ in
         let branch_expected = if List.is_empty args then expected else None in
         apply (paren (pp_pat table env tenv typ branch_expected t pv))
     | MLfix (i,ids,defs) ->
