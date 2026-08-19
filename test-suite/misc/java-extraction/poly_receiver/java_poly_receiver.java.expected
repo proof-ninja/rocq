@@ -1,0 +1,47 @@
+import java.util.function.Function;
+
+class java_poly_receiver {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+static Function<Object, Object> poly_id = x -> x
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  apply_through_id = f -> x ->
+  ((nat) ((Function<Object, Object>) poly_id.apply(f)).apply(((nat)
+                                                      new S(x))))
+  ;
+
+static nat
+  result = apply_through_id.apply(x -> ((nat)
+                           new S(x))
+                           ).apply(((nat) new O()));
+
+}

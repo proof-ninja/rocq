@@ -1,0 +1,129 @@
+import java.util.function.Function;
+
+class java_corelib_list {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface bool {}
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface option {}
+public static class Some implements option {
+  final Object Some0;
+  
+  Some(Object Some0) {
+    this.Some0 = Some0;
+    }
+    
+  }
+
+public static class None implements option {
+  
+  None() {
+    }
+    
+  }
+
+public interface prod {}
+public static class Pair implements prod {
+  final Object Pair0;
+  final Object Pair1;
+  
+  Pair(Object Pair0, Object Pair1) {
+    this.Pair0 = Pair0;
+    this.Pair1 = Pair1;
+    }
+    
+  }
+
+public interface list {}
+public static class Nil implements list {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements list {
+  final Object Cons0;
+  final list Cons1;
+  
+  Cons(Object Cons0, list Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<list, Function<list, list>> app;
+static {
+app = l -> m ->
+((l instanceof Nil) ? m
+: (l instanceof Cons) ? let(((Cons)l).Cons0, a ->
+                        let(((Cons)l).Cons1, l1 ->
+                        ((list) new Cons(a, app.apply(l1).apply(m)))))
+: error("non-exhaustive match"))
+;
+}
+
+static list sample = ((list) new Cons(((nat) new S(((nat) new O()))), ((list)
+  new Cons(((nat) new S(((nat) new S(((nat) new O()))))), ((list)
+  new Nil())))));
+
+static list doubled = app.apply(sample).apply(sample);
+
+static option
+  first = ((sample instanceof Nil) ? ((option) new None())
+  : (sample instanceof Cons) ? let(((nat) ((Cons)sample).Cons0), x ->
+                               ((option) new Some(x)))
+  : error("non-exhaustive match"));
+
+static Function<prod, prod> swap = p ->
+  ((p instanceof Pair) ? let(((Pair)p).Pair0, a ->
+                         let(((Pair)p).Pair1, b -> ((prod) new Pair(b, a))))
+  : error("non-exhaustive match"))
+  ;
+
+static prod
+  swapped = swap.apply(((prod) new Pair(((bool) new True()), ((nat)
+                new S(((nat) new O()))))));
+
+}
