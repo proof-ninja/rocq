@@ -51,5 +51,9 @@ public class DriverTypeAlias {
         java_type_alias.apply_head
             .apply(java_type_alias.singleton_op.apply(n -> new java_type_alias.S(n)))
             .apply(intToNat(0)));
+
+    // unbox Nought 3 = 3
+    check("unbox nought", 3,
+        java_type_alias.unbox.apply(new java_type_alias.Nought()).apply(intToNat(3)));
   }
 }
