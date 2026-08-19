@@ -233,6 +233,9 @@ let lookup_const_type r = match r.glob with
   | GlobRef.ConstRef c -> Cmap_env.find_opt c !const_types
   | _ -> None
 
+(* All packets of a block share the same [MutInd.t], so this records a
+   single binding, harmlessly re-added once per packet; iterating just
+   avoids assuming the array is non-empty or where an [IndRef] sits. *)
 let record_ind ind =
   Array.iter
     (fun p -> match p.ip_typename_ref.glob with
