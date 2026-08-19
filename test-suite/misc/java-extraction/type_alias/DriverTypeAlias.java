@@ -41,9 +41,9 @@ public class DriverTypeAlias {
     java_type_alias.list t = java_type_alias.second.apply(intToNat(1));
     check("second head", 2, (java_type_alias.nat) ((java_type_alias.Cons) t).Cons0);
 
-    // unbox (Box S) 1 = 2
+    // unbox (Wrap S) 1 = 2
     check("unbox", 2,
-        java_type_alias.unbox.apply(new java_type_alias.Box(n -> new java_type_alias.S(n)))
+        java_type_alias.unbox.apply(new java_type_alias.Wrap(n -> new java_type_alias.S(n)))
             .apply(intToNat(1)));
 
     // apply_head (singleton_op S) 0 = 1

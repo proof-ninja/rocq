@@ -65,11 +65,11 @@ static Function<nat, list> second = n -> singleton.apply(((nat) new S(n)))
   ;
 
 public interface box {}
-public static class Box implements box {
-  final Function<nat, nat> Box0;
+public static class Wrap implements box {
+  final Function<nat, nat> Wrap0;
   
-  Box(Function<nat, nat> Box0) {
-    this.Box0 = Box0;
+  Wrap(Function<nat, nat> Wrap0) {
+    this.Wrap0 = Wrap0;
     }
     
   }
@@ -82,7 +82,7 @@ public static class Nought implements box {
   }
 
 static Function<box, Function<nat, nat>> unbox = b -> n ->
-  ((b instanceof Box) ? let(((Box)b).Box0, f -> f.apply(n))
+  ((b instanceof Wrap) ? let(((Wrap)b).Wrap0, f -> f.apply(n))
   : (b instanceof Nought) ? n
   : error("non-exhaustive match"))
   ;

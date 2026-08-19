@@ -28,11 +28,14 @@ Definition second (n : nat) : natlist2 := singleton (S n).
 (* An inductive whose constructor field type is an alias. Two constructors
    on purpose: a one-constructor one-field inductive is classified Singleton
    by the extractor and hits a pre-existing java.ml issue unrelated to
-   aliases (wrapper class printed but constructor/match elided). *)
-Inductive box := Box : natop -> box | Nought : box.
+   aliases (wrapper class printed but constructor/match elided). The
+   constructor is [Wrap], not [Box]: a constructor differing from its type
+   only by case yields nested classes box/Box whose .class files collide on
+   case-insensitive filesystems (macOS). *)
+Inductive box := Wrap : natop -> box | Nought : box.
 Definition unbox (b : box) (n : nat) : nat :=
   match b with
-  | Box f => f n
+  | Wrap f => f n
   | Nought => n
   end.
 
