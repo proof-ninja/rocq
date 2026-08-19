@@ -279,6 +279,16 @@ let rec strip_arrows t k =
     | Tmeta { contents = Some t; _ } -> strip_arrows t k
     | _ -> None
 
+(* Number of leading arrows in [t], capped at [k]. This matches the number
+   of [Function] layers [pp_type] prints, hence the number of [.apply]
+   calls that typecheck on a value of type [t] without a cast. *)
+let rec arrows_upto t k =
+  if Int.equal k 0 then 0
+  else match t with
+    | Tarr (_, b) -> 1 + arrows_upto b (k - 1)
+    | Tmeta { contents = Some t; _ } -> arrows_upto t k
+    | _ -> 0
+
 (* Expected types of the first [k] arguments of a function of type [t];
    [None] entries where the arrow chain runs out. *)
 let rec arg_types t k =
@@ -337,11 +347,40 @@ let pp_cast table ~expected ~actual pp =
 let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in
   let apply_cast head_ty st =
-    let actual = match head_ty with
-      | Some t -> strip_arrows t (List.length args)
-      | None -> None
-    in
-    pp_cast table ~expected ~actual (pp_app st args)
+    let n = List.length args in
+    match head_ty with
+    | None -> pp_app st args
+    | Some t ->
+        let avail = arrows_upto t n in
+        if Int.equal avail n then
+          pp_cast table ~expected ~actual:(strip_arrows t n) (pp_app st args)
+        else
+          (* The head's type runs out of arrows before the arguments do: it
+             returns a type variable that is instantiated to a function.
+             Erasure makes the receiver's static Java type [Object] there,
+             so each remaining [.apply] must first cast it back to
+             [Function<Object, Object>]. An outer cast alone cannot help:
+             javac rejects the intermediate [.apply] before it. *)
+          let head_args, rest_args = List.chop avail args in
+          let runout_ty = match strip_arrows t avail with
+            | Some ty -> ty
+            | None -> assert false
+          in
+          let fn_object = pp_type table (Tarr (Tunknown, Tunknown)) in
+          let recv, _ =
+            List.fold_left
+              (fun (recv, first) arg ->
+                 let bridge =
+                   if first && not (erases_to_object runout_ty)
+                   then str "(Object) " else mt ()
+                 in
+                 let recv =
+                   paren (paren fn_object ++ str " " ++ bridge ++ recv)
+                 in
+                 pp_app recv [arg], false)
+              (pp_app st head_args, true) rest_args
+          in
+          pp_cast table ~expected ~actual:(Some Tunknown) recv
   in
   function
     | MLrel n as a ->
