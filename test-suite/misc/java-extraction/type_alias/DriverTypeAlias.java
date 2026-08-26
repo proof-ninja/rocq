@@ -46,6 +46,11 @@ public class DriverTypeAlias {
         java_type_alias.unbox.apply(new java_type_alias.Wrap(n -> new java_type_alias.S(n)))
             .apply(intToNat(1)));
 
+    // iter S 3 2 = 5
+    check("iter", 5,
+        java_type_alias.iter.apply(n -> new java_type_alias.S(n))
+            .apply(intToNat(3)).apply(intToNat(2)));
+
     // apply_head (singleton_op S) 0 = 1
     check("apply_head", 1,
         java_type_alias.apply_head

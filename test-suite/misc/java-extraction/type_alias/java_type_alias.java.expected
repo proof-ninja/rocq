@@ -87,6 +87,17 @@ static Function<box, Function<nat, nat>> unbox = b -> n ->
   : error("non-exhaustive match"))
   ;
 
+static Function<Function<nat, nat>, Function<nat, Function<nat, nat>>>
+iter;
+static {
+iter = f -> n -> x ->
+((n instanceof O) ? x
+: (n instanceof S) ? let(((S)n).S0, m ->
+                     f.apply(iter.apply(f).apply(m).apply(x)))
+: error("non-exhaustive match"))
+;
+}
+
 static Function<Function<nat, nat>, list> singleton_op = f -> ((list)
   new Cons(f, ((list) new Nil())))
   ;

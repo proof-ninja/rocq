@@ -39,6 +39,14 @@ Definition unbox (b : box) (n : nat) : nat :=
   | Nought => n
   end.
 
+(* A recursive definition ([Dfix]) whose type mentions an alias: the
+   [Dfix] branch expands types on its own, separately from [Dterm]. *)
+Fixpoint iter (f : natop) (n : nat) (x : nat) : nat :=
+  match n with
+  | O => x
+  | S m => f (iter f m x)
+  end.
+
 (* Alias as a type argument in constructor/match annotations. The
    constructor argument is a variable, not a lambda: a bare lambda in an
    [Object]-typed field position hits a pre-existing javac issue unrelated
@@ -55,4 +63,4 @@ Axiom abstract : Type.
 Definition const_zero (x : abstract) : nat := O.
 
 Extraction "java_type_alias.java"
-  singleton twice wrap second unbox singleton_op apply_head const_zero.
+  singleton twice wrap second unbox iter singleton_op apply_head const_zero.
