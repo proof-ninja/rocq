@@ -106,7 +106,8 @@ let pp_global table k r =
    the string IS the type. As in the other backends, writing a string that
    is valid in the chosen extraction language is the user's responsibility. *)
 let pp_type_global table r =
-  if is_custom r then str (find_custom r) else pp_global table Type r
+  if is_custom r then str (find_custom r)
+  else str (Common.pp_global table Type r)
 
 let pr_id id =
   str @@ String.map (fun c -> if c == '\'' then '$' else c) (Id.to_string id)
