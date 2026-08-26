@@ -31,7 +31,12 @@ let keywords =
     "true"; "false"; "null";
     (* not Java keywords, but names of the generated wrapper class's helpers:
        reserve them so extracted identifiers get renamed instead of clashing *)
-    "let"; "error"; "__"; "__dummy" ]
+    "let"; "error"; "__"; "__dummy";
+    (* java.lang/java.util types the preamble and generated code reference by
+       simple name: a nested class with one of these names would shadow them
+       throughout the wrapper class (e.g. Stdlib's string constructor [String]
+       breaking [error(String msg)]), so reserve them as well *)
+    "String"; "Object"; "Function"; "RuntimeException"; "SuppressWarnings" ]
     Id.Set.empty
 
 let is_java_ident_start c =
