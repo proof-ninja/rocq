@@ -1,0 +1,93 @@
+import java.util.function.Function;
+
+class java_record {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface point {}
+public static class MkPoint implements point {
+  final nat MkPoint0;
+  final nat MkPoint1;
+  
+  MkPoint(nat MkPoint0, nat MkPoint1) {
+    this.MkPoint0 = MkPoint0;
+    this.MkPoint1 = MkPoint1;
+    }
+    
+  }
+
+static point origin = ((point) new MkPoint(((nat) new O()), ((nat)
+  new O())));
+
+static Function<point, nat> getx = p ->
+  ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px -> px)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<point, nat> gety = p ->
+  ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py -> py)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<point, point> swap = p -> ((point)
+  new MkPoint(((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py -> py)
+  : error("non-exhaustive match")), ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px ->
+                                                              px)
+  : error("non-exhaustive match"))))
+  ;
+
+static Function<point, point> bump = p -> ((point) new MkPoint(((nat)
+  new S(((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px -> px)
+  : error("non-exhaustive match")))), ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py ->
+                                                                py)
+  : error("non-exhaustive match"))))
+  ;
+
+public interface tagged {}
+public static class MkTagged implements tagged {
+  final nat MkTagged0;
+  final Function<nat, nat> MkTagged1;
+  
+  MkTagged(nat MkTagged0, Function<nat, nat> MkTagged1) {
+    this.MkTagged0 = MkTagged0;
+    this.MkTagged1 = MkTagged1;
+    }
+    
+  }
+
+static tagged mk_inc = ((tagged) new MkTagged(((nat) new O()), x -> ((nat)
+  new S(x))
+  ));
+
+static Function<tagged, Function<nat, nat>> apply_tagged = t -> n ->
+  ((t instanceof MkTagged) ? let(((MkTagged)t).MkTagged1, op -> op.apply(n))
+  : error("non-exhaustive match"))
+  ;
+
+}
