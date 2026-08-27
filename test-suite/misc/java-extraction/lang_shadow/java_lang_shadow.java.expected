@@ -1,0 +1,91 @@
+import java.util.function.Function;
+
+class java_lang_shadow {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface ascii {}
+public static class Dot implements ascii {
+  
+  Dot() {
+    }
+    
+  }
+
+public static class Dash implements ascii {
+  
+  Dash() {
+    }
+    
+  }
+
+public interface string {}
+public static class EmptyString implements string {
+  
+  EmptyString() {
+    }
+    
+  }
+
+public static class String0 implements string {
+  final ascii String00;
+  final string String01;
+  
+  String0(ascii String00, string String01) {
+    this.String00 = String00;
+    this.String01 = String01;
+    }
+    
+  }
+
+static Function<string, string> dot_prefix = s -> ((string)
+  new String0(((ascii) new Dot()), s))
+  ;
+
+public interface lang {}
+public static class Function0 implements lang {
+  
+  Function0() {
+    }
+    
+  }
+
+public static class RuntimeException0 implements lang {
+  
+  RuntimeException0() {
+    }
+    
+  }
+
+public static class SuppressWarnings0 implements lang {
+  
+  SuppressWarnings0() {
+    }
+    
+  }
+
+public static class Object0 implements lang {
+  
+  Object0() {
+    }
+    
+  }
+
+static Function<lang, lang> rotate = o ->
+  ((o instanceof Function0) ? ((lang) new RuntimeException0())
+  : (o instanceof RuntimeException0) ? ((lang) new SuppressWarnings0())
+  : (o instanceof SuppressWarnings0) ? ((lang) new Object0())
+  : (o instanceof Object0) ? ((lang) new Function0())
+  : error("non-exhaustive match"))
+  ;
+
+}
