@@ -100,6 +100,15 @@ let pp_global table k r =
   if is_inline_custom r then str (find_custom r)
   else str (Common.pp_global table k r)
 
+(* A type reference with a custom extraction prints the custom string, not
+   the name: Java cannot declare a type alias, so [Extract Constant] on a
+   type produces no declaration the name could refer to — inlined or not,
+   the string IS the type. As in the other backends, writing a string that
+   is valid in the chosen extraction language is the user's responsibility. *)
+let pp_type_global table r =
+  if is_custom r then str (find_custom r)
+  else str (Common.pp_global table Type r)
+
 let pr_id id =
   str @@ String.map (fun c -> if c == '\'' then '$' else c) (Id.to_string id)
 
@@ -111,13 +120,13 @@ let pp_type table t =
        type, and [Object] is the weakest valid Java type. Casts back to
        concrete types are inserted at use sites by the printer. *)
     | Tvar _ -> str "Object"
-    | Tglob (r,[]) -> pp_global table Type r
+    | Tglob (r,[]) -> pp_type_global table r
     | Tglob (gr,l)
         when not (keep_singleton ()) && Rocqlib.check_ref sig_type_name gr.glob ->
         pp_tuple pp_rec l
     (* Erasure makes every generated class non-generic, so a type
        application prints as the bare class name. *)
-    | Tglob (r,_) -> pp_global table Type r
+    | Tglob (r,_) -> pp_type_global table r
     | Tarr (t1,t2) ->
         str "Function<" ++ pp_rec t1 ++ str ", " ++ pp_rec t2++ str ">"
     (* Both stand for "no informative type here". *)
@@ -220,10 +229,12 @@ let pp_fix_helper k =
 
 let const_types = ref Cmap_env.empty
 let ind_sigs = ref Mindmap_env.empty
+let type_aliases = ref Cmap_env.empty
 
 let reset_type_info () =
   const_types := Cmap_env.empty;
-  ind_sigs := Mindmap_env.empty
+  ind_sigs := Mindmap_env.empty;
+  type_aliases := Cmap_env.empty
 
 let record_const_type r ty = match r.glob with
   | GlobRef.ConstRef c -> const_types := Cmap_env.add c ty !const_types
@@ -232,6 +243,43 @@ let record_const_type r ty = match r.glob with
 let lookup_const_type r = match r.glob with
   | GlobRef.ConstRef c -> Cmap_env.find_opt c !const_types
   | _ -> None
+
+(*s Type synonyms ([Dtype]). Java has no type-alias feature, and wrapping
+    the body in a class would change the runtime representation, so alias
+    declarations are erased and every reference is expanded to the body.
+    Bodies are recorded as [pp_decl] meets the declarations; declarations
+    come in dependency order, so a reference always finds its alias. *)
+
+let record_type_alias r body = match r.glob with
+  | GlobRef.ConstRef c -> type_aliases := Cmap_env.add c body !type_aliases
+  | _ -> ()
+
+let lookup_type_alias r = match r.glob with
+  | GlobRef.ConstRef c -> Cmap_env.find_opt c !type_aliases
+  | _ -> None
+
+(* Replaces every alias reference by its recorded body. The recursion
+   terminates because a [Definition] cannot be recursive: an alias body only
+   mentions aliases declared strictly earlier. Deliberately independent of
+   [Mlutil.type_expand], which [Unset Extraction TypeExpand] turns into the
+   identity; in Java the expansion is a correctness requirement, not a
+   readability optimization, so it must not be switched off. *)
+let rec expand_aliases t = match t with
+  | Tglob (r, args) ->
+      (match lookup_type_alias r with
+       | Some body -> expand_aliases (type_subst_list args body)
+       | None -> Tglob (r, List.map expand_aliases args))
+  | Tarr (a, b) -> Tarr (expand_aliases a, expand_aliases b)
+  | Tmeta { contents = Some u; _ } -> expand_aliases u
+  | Tvar _ | Tvar' _ | Tdummy _ | Tunknown | Tmeta _ | Taxiom -> t
+
+(* Constructor field types may mention aliases declared earlier. *)
+let expand_ind_aliases ind =
+  { ind with ind_packets =
+      Array.map
+        (fun p ->
+           { p with ip_types = Array.map (List.map expand_aliases) p.ip_types })
+        ind.ind_packets }
 
 (* All packets of a block share the same [MutInd.t], so this records a
    single binding, harmlessly re-added once per packet; iterating just
@@ -315,7 +363,7 @@ let rec peel_lams t k =
 let rec type_of_expr tenv = function
   | MLrel n -> (try List.nth tenv (n - 1) with Failure _ | Invalid_argument _ -> None)
   | MLglob r -> lookup_const_type r
-  | MLcons (typ, _, _) -> Some typ
+  | MLcons (typ, _, _) -> Some (expand_aliases typ)
   | MLapp (f, args) ->
       (match type_of_expr tenv f with
        | Some ft -> strip_arrows ft (List.length args)
@@ -432,6 +480,9 @@ let rec pp_expr table env tenv expected args =
         apply_cast (lookup_const_type r) (pp_global table Term r)
     | MLcons (typ,r,args') -> (* [r] : a name of a constructor *)
         assert (List.is_empty args);
+        (* The annotation's type arguments may mention aliases (e.g.
+           [list natop]); they flow into field types via [type_subst_list]. *)
+        let typ = expand_aliases typ in
         let arg_tys = match constructor_arg_types r, typ with
           | Some tys, Tglob (_, targs) when Int.equal (List.length tys) (List.length args') ->
               List.map (fun ty -> Some (type_subst_list targs ty)) tys
@@ -451,6 +502,9 @@ let rec pp_expr table env tenv expected args =
     | MLcase (typ,t, pv) ->
         (* No cast around the conditional chain: each branch body receives
            the expected type and conforms on its own. *)
+        (* Same as MLcons: expand aliases in the annotation's type
+           arguments before they reach field types. *)
+        let typ = expand_aliases typ in
         let branch_expected = if List.is_empty args then expected else None in
         apply (paren (pp_pat table env tenv typ branch_expected t pv))
     | MLfix (i,ids,defs) ->
@@ -715,13 +769,32 @@ let pp_mind table i =
 
 
 let pp_decl table = function
-  | Dind i -> record_ind i; pp_mind table i
-  | Dtype _ -> str "type" ++ fnl2() (* TODO *)
+  | Dind i ->
+      let i = expand_ind_aliases i in
+      record_ind i; pp_mind table i
+  | Dtype (r, _, t) ->
+      (* A custom type ([Extract Constant t => "..."]) has no [ml_type]
+         body: the string itself is the expansion. Emit no declaration and
+         leave references unregistered — type positions print the custom
+         string via [pp_type_global]. *)
+      if is_custom r then mt ()
+      else
+        let body = match t with
+          (* An unrealized axiom type ([Axiom t : Type]) has no body; its
+             values are treated as [Object], consistently with term-level
+             axioms. A raw [Taxiom] must not be recorded: [pp_type] asserts
+             on it. *)
+          | Taxiom -> Tunknown
+          | t -> expand_aliases t
+        in
+        record_type_alias r body;
+        mt ()
   | Dfix (rv, defs, ty) ->
     (* Declare fields first, then assign in an instance initializer block.
        This avoids the "self-reference in initializer" error that occurs when a
        recursive lambda field initializer refers to the field being initialized. *)
     let n = Array.length rv in
+    let ty = Array.map expand_aliases ty in
     (* Recorded before printing so that recursive references inside the
        bodies already find their own types. *)
     let () = Array.iteri (fun i r -> record_const_type r ty.(i)) rv in
@@ -740,6 +813,7 @@ let pp_decl table = function
     Array.fold_left (++) (mt ()) (Array.init n init) ++
     str "}" ++ fnl2()
   | Dterm (r, a, t) ->
+      let t = expand_aliases t in
       record_const_type r t;
       if is_inline_custom r then mt ()
       else

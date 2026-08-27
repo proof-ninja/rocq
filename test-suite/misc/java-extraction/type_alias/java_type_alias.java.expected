@@ -1,0 +1,115 @@
+import java.util.function.Function;
+
+class java_type_alias {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface list {}
+public static class Nil implements list {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements list {
+  final Object Cons0;
+  final list Cons1;
+  
+  Cons(Object Cons0, list Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<nat, list> singleton = n -> ((list) new Cons(n, ((list)
+  new Nil())))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>> twice = f -> n ->
+  f.apply(f.apply(n))
+  ;
+
+static Function<nat, list> wrap = n -> ((list) new Cons(((list)
+  new Cons(n, ((list) new Nil()))), ((list) new Nil())))
+  ;
+
+static Function<nat, list> second = n -> singleton.apply(((nat) new S(n)))
+  ;
+
+public interface box {}
+public static class Wrap implements box {
+  final Function<nat, nat> Wrap0;
+  
+  Wrap(Function<nat, nat> Wrap0) {
+    this.Wrap0 = Wrap0;
+    }
+    
+  }
+
+public static class Nought implements box {
+  
+  Nought() {
+    }
+    
+  }
+
+static Function<box, Function<nat, nat>> unbox = b -> n ->
+  ((b instanceof Wrap) ? let(((Wrap)b).Wrap0, f -> f.apply(n))
+  : (b instanceof Nought) ? n
+  : error("non-exhaustive match"))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, Function<nat, nat>>>
+iter;
+static {
+iter = f -> n -> x ->
+((n instanceof O) ? x
+: (n instanceof S) ? let(((S)n).S0, m ->
+                     f.apply(iter.apply(f).apply(m).apply(x)))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<Function<nat, nat>, list> singleton_op = f -> ((list)
+  new Cons(f, ((list) new Nil())))
+  ;
+
+static Function<list, Function<nat, nat>> apply_head = l -> n ->
+  ((l instanceof Nil) ? n
+  : (l instanceof Cons) ? let(((Function<nat, nat>) ((Cons)l).Cons0), f ->
+                          f.apply(n))
+  : error("non-exhaustive match"))
+  ;
+
+static Function<Object, nat> const_zero = _ -> ((nat) new O())
+  ;
+
+}
