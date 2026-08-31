@@ -687,6 +687,11 @@ let pp_java_constructor classname ty_name_list =
 
 
 (* class with one constructor *)
+(* Known broken: the extraction core unwraps singleton constructors at the
+   term level, so this bare wrapper class never matches its use sites; fixing
+   it needs type-reference expansion, not a declaration change. Until then,
+   [Set Extraction KeepSingleton] classifies one-field records as [Record]
+   and routes them through the working [pp_ind] scheme. *)
 let pp_singleton table packet =
   let name = pp_global_name table Type packet.ip_typename_ref in
   let fieldname = Id.print packet.ip_consnames.(0) in
@@ -749,8 +754,7 @@ let pp_mind table i =
        inductive's ([new Ctor(...)], [instanceof Ctor], positional [CtorN]
        fields), so its declaration must use the same scheme; the projection
        names carried by [Record] are not used. *)
-    | Record _ -> pp_ind table i
-    | Standard -> pp_ind table i
+    | Record _ | Standard -> pp_ind table i
 
 
 let pp_decl table = function
