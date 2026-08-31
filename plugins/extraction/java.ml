@@ -155,10 +155,6 @@ let pp_abst st idlist = match idlist with (* may need cast, "(Function<S, T>)(x 
 let pp_letin x def body = (* let(def, x -> body), where [let] is a defined function *)
   hv 0 (hv 0 (str "let" ++ paren (def ++ str ", " ++ x ++ str " ->" ++ spc() ++ hov 0 body)))
 
-let kn_of_ind r = let open GlobRef in match r.glob with
-  | IndRef (kn,_) -> MutInd.user kn
-  | _ -> assert false
-
 let get_ind r = let open GlobRef in match r.glob with
   | IndRef _ -> r
   | ConstructRef (ind,_) -> { glob = IndRef ind; inst = r.inst }
@@ -671,17 +667,9 @@ let str_global_with_key table k key r =
 
 let str_global table k r = str_global_with_key table k (repr_of_r r) r
 
-let pp_global_with_key table k key r = str (str_global_with_key table k key r)
-
 let pp_global table k r = str (str_global table k r)
 
 let pp_global_name table k r = str (Common.pp_global table k r)
-
-let pp_one_field table r i = function
-  | Some r' -> pp_global_with_key table Term (kn_of_ind (get_ind r)) r'
-  | None -> pp_global table Type (get_ind r) ++ str "__" ++ int i
-
-let pp_fields table r fields = List.map_i (pp_one_field table r) 0 fields
 
 let pp_equiv table name inst = function
   | NoEquiv, _ -> mt ()
@@ -699,6 +687,11 @@ let pp_java_constructor classname ty_name_list =
 
 
 (* class with one constructor *)
+(* Known broken: the extraction core unwraps singleton constructors at the
+   term level, so this bare wrapper class never matches its use sites; fixing
+   it needs type-reference expansion, not a declaration change. Until then,
+   [Set Extraction KeepSingleton] classifies one-field records as [Record]
+   and routes them through the working [pp_ind] scheme. *)
 let pp_singleton table packet =
   let name = pp_global_name table Type packet.ip_typename_ref in
   let fieldname = Id.print packet.ip_consnames.(0) in
@@ -707,18 +700,6 @@ let pp_singleton table packet =
     pp_instance_var ty fieldname ++ fnl() ++
     pp_java_constructor name [(ty, fieldname)] ++ fnl()
     ++ str "}" ++ fnl2()
-
-(* class with two or more constructors *)
-let pp_record table fields ip_equiv packet =
-  let ind = packet.ip_typename_ref in
-  let name = pp_global_name table Type ind in
-  let fieldnames = pp_fields table ind fields in
-  let l = List.combine fieldnames packet.ip_types.(0) in
-  str "public static class " ++ name ++ str " {" ++ fnl() ++
-    prlist_strict (fun (p,t) -> pp_instance_var (pp_type table t) p) l ++ fnl() ++
-    (* pp_equiv table name ind.inst ip_equiv ++ *)
-    pp_java_constructor name (List.map (fun (p, t) -> (pp_type table t, p)) l) ++ fnl() ++
-  str " } " ++ fnl2()
 
 (* one [Inductive a := ... .] *)
 let pp_one_ind table inst ip_equiv name cnames ctyps =
@@ -769,8 +750,11 @@ let pp_mind table i =
   match i.ind_kind with
     | Singleton -> (* Record or Class with one element *) pp_singleton table i.ind_packets.(0)
     | Coinductive -> paren (str "extraction of coinductive definition is not implemented")
-    | Record fields -> (* Record or Class with two or more elements *) pp_record table fields (i.ind_equiv,0) i.ind_packets.(0)
-    | Standard -> pp_ind table i
+    (* A record's construction and match sites print exactly like an ordinary
+       inductive's ([new Ctor(...)], [instanceof Ctor], positional [CtorN]
+       fields), so its declaration must use the same scheme; the projection
+       names carried by [Record] are not used. *)
+    | Record _ | Standard -> pp_ind table i
 
 
 let pp_decl table = function
