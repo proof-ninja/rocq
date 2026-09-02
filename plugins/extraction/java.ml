@@ -351,13 +351,20 @@ let rec arg_types t k =
     | _ -> List.init k (fun _ -> None)
 
 (* Peels [k] lambda-argument types off [t]; returns them outermost first,
-   together with the type of the body. *)
+   together with the type of the body. When [t] runs out of arrows before
+   [k] does, the parameters are still known to be Object-erased (that is
+   what a value of type [t] can be at all once its arrow chain is spent),
+   so they get [Some Tunknown] rather than [None]: unlike a true unknown,
+   this lets [pp_cast] downstream still cast a parameter back to a concrete
+   type at its use site (e.g. a constructor argument). The body's own type
+   is left [None]: nothing here says what it is, only that [t] cannot
+   describe it. *)
 let rec peel_lams t k =
   if Int.equal k 0 then [], Some t
   else match t with
     | Tarr (a, b) -> let ps, r = peel_lams b (k - 1) in Some a :: ps, r
     | Tmeta { contents = Some t; _ } -> peel_lams t k
-    | _ -> List.init k (fun _ -> None), None
+    | _ -> List.init k (fun _ -> Some Tunknown), None
 
 (* Bottom-up type of an expression, where recoverable. [tenv] parallels the
    de Bruijn context of [env]: its head is the type of [MLrel 1]. *)
@@ -395,6 +402,44 @@ let pp_cast table ~expected ~actual pp =
               if erases_to_object aty then mt () else str "(Object) "
             in
             paren (paren (pp_type table ety) ++ str " " ++ bridge ++ pp)
+
+(* Whether [t] prints as a bare (unapplied) lambda, seeing through MLmagic:
+   [is_fix_head] (above) plays the analogous role for MLfix. *)
+let rec is_bare_lambda = function
+  | MLlam _ -> true
+  | MLmagic a -> is_bare_lambda a
+  | _ -> false
+
+let rec lambda_arity = function
+  | MLlam (_, b) -> 1 + lambda_arity b
+  | MLmagic a -> lambda_arity a
+  | _ -> 0
+
+(* A match branch that prints as a bare lambda cannot sit as-is in the
+   ternary chain [pp_pat_branches] builds: a lambda expression only gets a
+   target type from its immediate context (JLS 15.25), and here that
+   context is the conditional operator itself, whose type is worked out
+   from its OTHER branches (typically erased to [Object]) before the
+   enclosing assignment is ever reached — javac then rejects the lambda
+   with "not a functional interface", regardless of what the branch's own
+   [expected] eventually resolves to. This can only arise when branches'
+   ML types genuinely disagree (a [needs_magic] situation: otherwise every
+   branch already shares one Java type), so it belongs with the rest of
+   this file's MLmagic handling.
+
+   The fix is the same "(Function<S, T>)(x -> e)" cast [pp_abst]'s own
+   comment anticipates, aimed at the lambda's own (erased, hence all-Object)
+   shape rather than at [expected] — casting straight to [expected] would
+   fail identically whenever [expected] is itself just [Object]. [pp_cast]
+   then still applies on top for the rarer case where [expected] is known
+   and more specific than that erased shape. *)
+let cast_branch_lambda table expected t body =
+  if not (is_bare_lambda t) then body
+  else
+    let rec fn_ty k = if k <= 0 then Tunknown else Tarr (Tunknown, fn_ty (k - 1)) in
+    let fn_ty = fn_ty (lambda_arity t) in
+    let cast_to_fn = paren (paren (pp_type table fn_ty) ++ paren body) in
+    pp_cast table ~expected ~actual:(Some fn_ty) cast_to_fn
 
 let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in
@@ -579,7 +624,9 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
     | None -> None
   in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
-  let body = pp_expr table env' tenv' expected [] t in
+  let body =
+    cast_branch_lambda table expected t (pp_expr table env' tenv' expected [] t)
+  in
   let cast_exp = paren (paren (str constr) ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
@@ -612,10 +659,13 @@ and pp_catch_all_pat table env tenv typ expected scrut (ids,p,t) =
   match p with
   | Pwild ->
       assert (List.is_empty ids);
-      pp_expr table env tenv expected [] t
+      cast_branch_lambda table expected t (pp_expr table env tenv expected [] t)
   | Prel _ ->
       let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
-      let body = pp_expr table env' (Some typ :: tenv) expected [] t in
+      let body =
+        cast_branch_lambda table expected t
+          (pp_expr table env' (Some typ :: tenv) expected [] t)
+      in
       (match ids' with
        | [id] -> pp_letin (pr_id id) scrut body
        | _ -> assert false)
