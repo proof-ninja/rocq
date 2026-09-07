@@ -416,30 +416,42 @@ let rec lambda_arity = function
   | _ -> 0
 
 (* A match branch that prints as a bare lambda cannot sit as-is in the
-   ternary chain [pp_pat_branches] builds: a lambda expression only gets a
-   target type from its immediate context (JLS 15.25), and here that
-   context is the conditional operator itself, whose type is worked out
-   from its OTHER branches (typically erased to [Object]) before the
-   enclosing assignment is ever reached — javac then rejects the lambda
-   with "not a functional interface", regardless of what the branch's own
-   [expected] eventually resolves to. This can only arise when branches'
-   ML types genuinely disagree (a [needs_magic] situation: otherwise every
-   branch already shares one Java type), so it belongs with the rest of
-   this file's MLmagic handling.
+   ternary chain [pp_pat_branches] builds whenever its target type there
+   erases to [Object]: a reference conditional expression is a poly
+   expression in this context (JLS 15.25.3), so each operand does receive
+   the enclosing target type, but a branch computed from the OTHER branches
+   (typically erased to [Object]) gives the lambda no functional interface
+   to conform to — javac then rejects it with "not a functional interface".
+   This can only arise when branches' ML types genuinely disagree (a
+   [needs_magic] situation: otherwise every branch already shares one Java
+   type), so it belongs with the rest of this file's MLmagic handling.
 
-   The fix is the same "(Function<S, T>)(x -> e)" cast [pp_abst]'s own
-   comment anticipates, aimed at the lambda's own (erased, hence all-Object)
-   shape rather than at [expected] — casting straight to [expected] would
-   fail identically whenever [expected] is itself just [Object]. [pp_cast]
-   then still applies on top for the rarer case where [expected] is known
-   and more specific than that erased shape. *)
+   A cast is needed only when [expected]'s own arrow chain does not already
+   cover the lambda's arity: that is exactly when the branch, printed with
+   [expected] threaded through as in [pp_expr]'s [MLlam] case, would fall
+   back to [Tunknown] parameter types via [peel_lams] and print as
+   [Function<Object, ...>] while sitting in a [Function<S, T>] slot. The
+   cast target is built from that same [peel_lams expected n] call so it
+   always agrees with what the [MLlam] printer assumed for the body: any
+   divergence between the two would silently swap which value ends up
+   [Object] at runtime. When [expected] is [None] (an applied match, a fix
+   body, a let right-hand side) or already covers the lambda's arity, no
+   cast is inserted and the output is unchanged — this leaves those
+   [expected = None] branches uncovered, but never wrong: javac rejects
+   missing casts instead of us emitting an unsound one. *)
 let cast_branch_lambda table expected t body =
-  if not (is_bare_lambda t) then body
-  else
-    let rec fn_ty k = if k <= 0 then Tunknown else Tarr (Tunknown, fn_ty (k - 1)) in
-    let fn_ty = fn_ty (lambda_arity t) in
-    let cast_to_fn = paren (paren (pp_type table fn_ty) ++ paren body) in
-    pp_cast table ~expected ~actual:(Some fn_ty) cast_to_fn
+  let n = lambda_arity t in
+  match expected with
+  | Some ety when is_bare_lambda t && arrows_upto ety n < n ->
+      let param_tys, _ = peel_lams ety n in
+      let fn_ty =
+        List.fold_right
+          (fun p acc -> Tarr ((match p with Some p -> p | None -> Tunknown), acc))
+          param_tys Tunknown
+      in
+      let cast_to_fn = paren (paren (pp_type table fn_ty) ++ paren body) in
+      pp_cast table ~expected ~actual:(Some fn_ty) cast_to_fn
+  | _ -> body
 
 let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in

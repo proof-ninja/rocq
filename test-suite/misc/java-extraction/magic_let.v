@@ -17,8 +17,10 @@ Definition dep_fn2 (b : bool) : (if b then nat -> nat else bool) :=
    application [f n] disagrees with its own let-bound name's erased type, so
    OCaml extraction puts the MLmagic on [f n] itself; mlutil.ml's [simpl]
    then rewrites that to MLmagic sitting on the callee ([f]), the head of an
-   MLapp -- this is the position type_of_expr's MLmagic case now recovers a
-   type for (java.ml), instead of unconditionally answering "unknown". *)
+   MLapp -- this is the position [type_of_expr]'s [MLmagic] case (java.ml)
+   still unconditionally answers "unknown" for (recovering a type there was
+   split out to #39, since no case here demonstrated actual harm from not
+   doing so). *)
 Definition indirect (n : nat) : nat :=
   let f := dep_fn2 true in f n.
 
