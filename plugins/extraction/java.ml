@@ -419,26 +419,40 @@ let rec lambda_arity = function
    ternary chain [pp_pat_branches] builds whenever its target type there
    erases to [Object]: a reference conditional expression is a poly
    expression in this context (JLS 15.25.3), so each operand does receive
-   the enclosing target type, but a branch computed from the OTHER branches
-   (typically erased to [Object]) gives the lambda no functional interface
-   to conform to — javac then rejects it with "not a functional interface".
-   This can only arise when branches' ML types genuinely disagree (a
-   [needs_magic] situation: otherwise every branch already shares one Java
-   type), so it belongs with the rest of this file's MLmagic handling.
+   the enclosing target type — but when that target type is itself erased to
+   [Object] (typically because it is worked out from the OTHER branches),
+   the lambda has no functional interface to conform to, and javac rejects
+   it with "not a functional interface".
+   This typically arises when branches' ML types genuinely disagree (a
+   [needs_magic] situation), which is why it belongs with the rest of this
+   file's MLmagic handling — but it is not limited to that: [permut_case_fun]
+   (mlutil.ml) only lifts a shared minimum of lambdas out of a match (skipping
+   [MLexn] branches), and that minimum is zero whenever some other
+   non-exception branch is a bare 0-arity value (e.g. a global reference), so
+   a purely monomorphic match can leave a bare lambda branch here with no
+   MLmagic in sight.
 
    A cast is needed only when [expected]'s own arrow chain does not already
    cover the lambda's arity: that is exactly when the branch, printed with
    [expected] threaded through as in [pp_expr]'s [MLlam] case, would fall
-   back to [Tunknown] parameter types via [peel_lams] and print as
-   [Function<Object, ...>] while sitting in a [Function<S, T>] slot. The
-   cast target is built from that same [peel_lams expected n] call so it
-   always agrees with what the [MLlam] printer assumed for the body: any
-   divergence between the two would silently swap which value ends up
-   [Object] at runtime. When [expected] is [None] (an applied match, a fix
-   body, a let right-hand side) or already covers the lambda's arity, no
-   cast is inserted and the output is unchanged — this leaves those
-   [expected = None] branches uncovered, but never wrong: javac rejects
-   missing casts instead of us emitting an unsound one. *)
+   back to [Tunknown] parameter types via [peel_lams] and print as an
+   untyped [x -> ...] sitting in a slot erased to [Object], with nothing to
+   infer a functional interface from. The cast target is built from that
+   same [peel_lams expected n] call so it agrees with what the [MLlam]
+   printer assumes for the body in the common case; a divergence is possible
+   when an [MLmagic] sits between two [MLlam] layers of the same branch,
+   since [lambda_arity] (unlike the [MLlam] printer's own [collect_lams])
+   sees through it — there [n] overcounts what the printer's outer layer
+   uses, so the two [peel_lams] calls are peeling at different depths. This
+   cannot produce a wrong cast (the printer's own layer-by-layer target
+   typing is unaffected by the outer cast wrapping it, and Java's target
+   typing propagates a functional interface's return type into a nested
+   lambda), only, in the worst case, a missing one that javac would reject.
+   When [expected] is [None] (an applied match, a fix body, a let
+   right-hand side) or already covers the lambda's arity, no cast is
+   inserted and the output is unchanged — this leaves those [expected =
+   None] branches uncovered, but never wrong: javac rejects missing casts
+   instead of us emitting an unsound one. *)
 let cast_branch_lambda table expected t body =
   let n = lambda_arity t in
   match expected with
