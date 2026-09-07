@@ -351,13 +351,20 @@ let rec arg_types t k =
     | _ -> List.init k (fun _ -> None)
 
 (* Peels [k] lambda-argument types off [t]; returns them outermost first,
-   together with the type of the body. *)
+   together with the type of the body. When [t] runs out of arrows before
+   [k] does, the parameters are still known to be Object-erased (that is
+   what a value of type [t] can be at all once its arrow chain is spent),
+   so they get [Some Tunknown] rather than [None]: unlike a true unknown,
+   this lets [pp_cast] downstream still cast a parameter back to a concrete
+   type at its use site (e.g. a constructor argument). The body's own type
+   is left [None]: nothing here says what it is, only that [t] cannot
+   describe it. *)
 let rec peel_lams t k =
   if Int.equal k 0 then [], Some t
   else match t with
     | Tarr (a, b) -> let ps, r = peel_lams b (k - 1) in Some a :: ps, r
     | Tmeta { contents = Some t; _ } -> peel_lams t k
-    | _ -> List.init k (fun _ -> None), None
+    | _ -> List.init k (fun _ -> Some Tunknown), None
 
 (* Bottom-up type of an expression, where recoverable. [tenv] parallels the
    de Bruijn context of [env]: its head is the type of [MLrel 1]. *)
@@ -395,6 +402,70 @@ let pp_cast table ~expected ~actual pp =
               if erases_to_object aty then mt () else str "(Object) "
             in
             paren (paren (pp_type table ety) ++ str " " ++ bridge ++ pp)
+
+(* Whether [t] prints as a bare (unapplied) lambda, seeing through MLmagic:
+   [is_fix_head] (above) plays the analogous role for MLfix. *)
+let rec is_bare_lambda = function
+  | MLlam _ -> true
+  | MLmagic a -> is_bare_lambda a
+  | _ -> false
+
+let rec lambda_arity = function
+  | MLlam (_, b) -> 1 + lambda_arity b
+  | MLmagic a -> lambda_arity a
+  | _ -> 0
+
+(* A match branch that prints as a bare lambda cannot sit as-is in the
+   ternary chain [pp_pat_branches] builds whenever its target type there
+   erases to [Object]: a reference conditional expression is a poly
+   expression in this context (JLS 15.25.3), so each operand does receive
+   the enclosing target type — but when that target type is itself erased to
+   [Object] (typically because it is worked out from the OTHER branches),
+   the lambda has no functional interface to conform to, and javac rejects
+   it with "not a functional interface".
+   This typically arises when branches' ML types genuinely disagree (a
+   [needs_magic] situation), which is why it belongs with the rest of this
+   file's MLmagic handling — but it is not limited to that: [permut_case_fun]
+   (mlutil.ml) only lifts a shared minimum of lambdas out of a match (skipping
+   [MLexn] branches), and that minimum is zero whenever some other
+   non-exception branch is a bare 0-arity value (e.g. a global reference), so
+   a purely monomorphic match can leave a bare lambda branch here with no
+   MLmagic in sight.
+
+   A cast is needed only when [expected]'s own arrow chain does not already
+   cover the lambda's arity: that is exactly when the branch, printed with
+   [expected] threaded through as in [pp_expr]'s [MLlam] case, would fall
+   back to [Tunknown] parameter types via [peel_lams] and print as an
+   untyped [x -> ...] sitting in a slot erased to [Object], with nothing to
+   infer a functional interface from. The cast target is built from that
+   same [peel_lams expected n] call so it agrees with what the [MLlam]
+   printer assumes for the body in the common case; a divergence is possible
+   when an [MLmagic] sits between two [MLlam] layers of the same branch,
+   since [lambda_arity] (unlike the [MLlam] printer's own [collect_lams])
+   sees through it — there [n] overcounts what the printer's outer layer
+   uses, so the two [peel_lams] calls are peeling at different depths. This
+   cannot produce a wrong cast (the printer's own layer-by-layer target
+   typing is unaffected by the outer cast wrapping it, and Java's target
+   typing propagates a functional interface's return type into a nested
+   lambda), only, in the worst case, a missing one that javac would reject.
+   When [expected] is [None] (an applied match, a fix body, a let
+   right-hand side) or already covers the lambda's arity, no cast is
+   inserted and the output is unchanged — this leaves those [expected =
+   None] branches uncovered, but never wrong: javac rejects missing casts
+   instead of us emitting an unsound one. *)
+let cast_branch_lambda table expected t body =
+  let n = lambda_arity t in
+  match expected with
+  | Some ety when is_bare_lambda t && arrows_upto ety n < n ->
+      let param_tys, _ = peel_lams ety n in
+      let fn_ty =
+        List.fold_right
+          (fun p acc -> Tarr ((match p with Some p -> p | None -> Tunknown), acc))
+          param_tys Tunknown
+      in
+      let cast_to_fn = paren (paren (pp_type table fn_ty) ++ paren body) in
+      pp_cast table ~expected ~actual:(Some fn_ty) cast_to_fn
+  | _ -> body
 
 let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in
@@ -579,7 +650,9 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
     | None -> None
   in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
-  let body = pp_expr table env' tenv' expected [] t in
+  let body =
+    cast_branch_lambda table expected t (pp_expr table env' tenv' expected [] t)
+  in
   let cast_exp = paren (paren (str constr) ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
@@ -612,10 +685,13 @@ and pp_catch_all_pat table env tenv typ expected scrut (ids,p,t) =
   match p with
   | Pwild ->
       assert (List.is_empty ids);
-      pp_expr table env tenv expected [] t
+      cast_branch_lambda table expected t (pp_expr table env tenv expected [] t)
   | Prel _ ->
       let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
-      let body = pp_expr table env' (Some typ :: tenv) expected [] t in
+      let body =
+        cast_branch_lambda table expected t
+          (pp_expr table env' (Some typ :: tenv) expected [] t)
+      in
       (match ids' with
        | [id] -> pp_letin (pr_id id) scrut body
        | _ -> assert false)

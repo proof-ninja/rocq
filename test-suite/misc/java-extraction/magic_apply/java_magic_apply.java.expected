@@ -1,0 +1,62 @@
+import java.util.function.Function;
+
+class java_magic_apply {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface bool {}
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+static Function<bool, Object> dep_fn = b ->
+  ((b instanceof True) ? ((Function<Object, Object>)(x ->
+     ((nat)
+     new S(((nat) x)))
+     ))
+  : (b instanceof False) ? ((bool) new True())
+  : error("non-exhaustive match"))
+  ;
+
+static nat
+  apply_dep_fn = ((nat) ((Function<Object, Object>) dep_fn.apply(((bool)
+                                                          new True())))
+  .apply(((nat) new O())));
+
+}
