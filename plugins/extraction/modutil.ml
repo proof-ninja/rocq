@@ -421,7 +421,97 @@ let check_for_remaining_implicits struc =
   try ignore (struct_ast_search check struc)
   with RemainingImplicit k -> err_or_warn_remaining_implicit k
 
+(*s Canonical inductive references (Java). *)
+
+(* A module alias ([Module M := Other]) or an [Include] gives an inductive
+   a second user name whose canonical name is the original's. For every
+   language but OCaml the extraction core expands such modules, so the
+   alias arrives as a full copy of the inductive block, keyed by the alias
+   name. Java has no type aliases and prints everything into one flat
+   class, so the copy would become a distinct, incompatible type: a value
+   built as [M.P] could not be passed where [Other.point] is expected
+   although both are the same type in Rocq. Instead every inductive
+   reference is redirected to the canonical block and the alias block's
+   declaration is dropped. This must run before [depcheck_struct], which
+   decides reachability by user name and would otherwise prune the
+   canonical block ([Visit.add_ref] in extract_env.ml makes sure it was
+   extracted in the first place). For an inductive that is not aliased
+   both names agree and nothing changes. Constants are left alone: a
+   duplicated constant is dead weight, not a type mismatch. *)
+
+let canonical_mind kn =
+  let c = MutInd.canonical kn in
+  if KerName.equal c (MutInd.user kn) then kn else MutInd.make1 c
+
+let canonical_ref r = match r.glob with
+  | GlobRef.IndRef (kn, i) ->
+      { r with glob = GlobRef.IndRef (canonical_mind kn, i) }
+  | GlobRef.ConstructRef ((kn, i), j) ->
+      { r with glob = GlobRef.ConstructRef ((canonical_mind kn, i), j) }
+  | GlobRef.ConstRef _ | GlobRef.VarRef _ -> r
+
+let rec canonical_type = function
+  | Tglob (r, args) -> Tglob (canonical_ref r, List.map canonical_type args)
+  | Tarr (a, b) -> Tarr (canonical_type a, canonical_type b)
+  | Tmeta { contents = Some u; _ } -> canonical_type u
+  | Tvar _ | Tvar' _ | Tmeta _ | Tdummy _ | Tunknown | Taxiom as t -> t
+
+let rec canonical_pat = function
+  | Pcons (r, l) -> Pcons (canonical_ref r, List.map canonical_pat l)
+  | Pusual r -> Pusual (canonical_ref r)
+  | Ptuple l -> Ptuple (List.map canonical_pat l)
+  | Prel _ | Pwild as p -> p
+
+(* [MLcons] and [MLcase] are handled here because [ast_map] leaves their
+   heads alone. *)
+let rec canonical_ast = function
+  | MLcons (ty, r, args) ->
+      MLcons (canonical_type ty, canonical_ref r, List.map canonical_ast args)
+  | MLcase (ty, e, br) ->
+      MLcase (canonical_type ty, canonical_ast e,
+              Array.map (fun (ids, p, b) -> (ids, canonical_pat p, canonical_ast b)) br)
+  | a -> ast_map canonical_ast a
+
+let is_alias_ind ind =
+  Array.exists
+    (fun p -> match p.ip_typename_ref.glob with
+       | GlobRef.IndRef (kn, _) ->
+           not (KerName.equal (MutInd.canonical kn) (MutInd.user kn))
+       | _ -> false)
+    ind.ind_packets
+
+(* Field types of the surviving blocks may still mention an alias. *)
+let canonical_ind ind =
+  { ind with ind_packets =
+      Array.map
+        (fun p -> { p with ip_types = Array.map (List.map canonical_type) p.ip_types })
+        ind.ind_packets }
+
+let canonical_decl = function
+  | Dind ind -> if is_alias_ind ind then None else Some (Dind (canonical_ind ind))
+  | Dtype (r, vs, t) -> Some (Dtype (r, vs, canonical_type t))
+  | Dterm (r, a, t) -> Some (Dterm (r, canonical_ast a, canonical_type t))
+  | Dfix (rv, av, tv) ->
+      Some (Dfix (rv, Array.map canonical_ast av, Array.map canonical_type tv))
+
+let rec canonical_elems sel =
+  List.filter_map
+    (fun (l, e) -> match e with
+       | SEdecl d -> Option.map (fun d -> (l, SEdecl d)) (canonical_decl d)
+       | SEmodule m ->
+           Some (l, SEmodule { m with ml_mod_expr = canonical_mexpr m.ml_mod_expr })
+       | SEmodtype _ -> Some (l, e))
+    sel
+
+and canonical_mexpr = function
+  | MEstruct (mp, sel) -> MEstruct (mp, canonical_elems sel)
+  | MEident _ | MEfunctor _ | MEapply _ as me -> me
+
+let canonicalize_inductives struc =
+  List.map (fun (mp, sel) -> (mp, canonical_elems sel)) struc
+
 let optimize_struct table to_appear struc =
+  let struc = if lang () == Java then canonicalize_inductives struc else struc in
   let subst = ref (Refmap'.empty : ml_ast Refmap'.t) in
   let opt_struc =
     List.map (fun (mp,lse) -> (mp, optim_se (Common.State.get_table table) true (fst to_appear) subst lse))

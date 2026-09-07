@@ -106,7 +106,12 @@ module Visit : VISIT = struct
   let add_kn v kn inst = v.kn <- KNset.add (kn, inst) v.kn; add_mp v (KerName.modpath kn)
   let add_ref v r = let open GlobRef in match r.glob with
     | ConstRef c -> add_kn v (Constant.user c) r.inst
-    | IndRef (ind,_) | ConstructRef ((ind,_),_) -> add_kn v (MutInd.user ind) r.inst
+    | IndRef (ind,_) | ConstructRef ((ind,_),_) ->
+      add_kn v (MutInd.user ind) r.inst;
+      (* For Java every inductive reference is redirected to the block
+         declared under its canonical name ([Modutil.canonicalize_inductives]),
+         so that block is needed even when only an alias name is mentioned. *)
+      if lang () == Java then add_kn v (MutInd.canonical ind) r.inst
     | VarRef _ -> assert false
   let add_decl_deps v decl =
     decl_iter_references (fun kn -> add_ref v kn) (fun r -> add_ref v r) (fun r -> add_ref v r) decl
