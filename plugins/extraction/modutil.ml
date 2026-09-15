@@ -435,9 +435,30 @@ let check_for_remaining_implicits struc =
    declaration is dropped. This must run before [depcheck_struct], which
    decides reachability by user name and would otherwise prune the
    canonical block ([Visit.add_ref] in extract_env.ml makes sure it was
-   extracted in the first place). For an inductive that is not aliased
-   both names agree and nothing changes. Constants are left alone: a
-   duplicated constant is dead weight, not a type mismatch. *)
+   extracted in the first place). The objects requested on the command
+   line ([to_appear], whose only consumer is dead-code removal) are
+   redirected the same way, and every dropped alias block adds its
+   canonical block to them: otherwise a request for an alias name, or for
+   the alias module itself, would seed dead-code removal with names that
+   no declaration carries any more, and the canonical block would be
+   pruned unless something else happened to refer to it. Since an alias
+   block was never prunable (dead-code removal keeps submodules whole),
+   seeding every dropped block keeps exactly what was kept before, no
+   less and no more. For an inductive that is not aliased both names
+   agree and nothing changes. Constants are left alone: a duplicated
+   constant is dead weight, not a type mismatch.
+
+   Known gap: the custom-extraction table is keyed by user name, so an
+   [Extract Inductive] given for an alias name is not seen through the
+   canonical name and is silently ignored (TODO; [Extract Inductive] is
+   not functional for Java yet anyway).
+
+   All of this assumes that the whole extraction ends up in one Java
+   class, which only holds for monolithic extraction ([Extraction "f"]
+   and [Recursive Extraction]). In modular mode ([Separate Extraction],
+   [Extraction Library]) the canonical block lives in another file, and
+   Java has no way to refer to it (no imports, no qualification), so the
+   redirection is not applied there. *)
 
 let canonical_mind kn =
   let c = MutInd.canonical kn in
@@ -487,31 +508,55 @@ let canonical_ind ind =
         (fun p -> { p with ip_types = Array.map (List.map canonical_type) p.ip_types })
         ind.ind_packets }
 
-let canonical_decl = function
-  | Dind ind -> if is_alias_ind ind then None else Some (Dind (canonical_ind ind))
+(* [dropped] collects, for every alias block that is removed, the
+   reference to the canonical block that takes its place. *)
+
+let canonical_decl dropped = function
+  | Dind ind ->
+      if is_alias_ind ind then begin
+        (* One entry per block: dead-code removal keys every packet of a
+           block by its first one ([base_r]). *)
+        dropped := canonical_ref ind.ind_packets.(0).ip_typename_ref :: !dropped;
+        None
+      end
+      else Some (Dind (canonical_ind ind))
   | Dtype (r, vs, t) -> Some (Dtype (r, vs, canonical_type t))
   | Dterm (r, a, t) -> Some (Dterm (r, canonical_ast a, canonical_type t))
   | Dfix (rv, av, tv) ->
       Some (Dfix (rv, Array.map canonical_ast av, Array.map canonical_type tv))
 
-let rec canonical_elems sel =
+let rec canonical_elems dropped sel =
   List.filter_map
     (fun (l, e) -> match e with
-       | SEdecl d -> Option.map (fun d -> (l, SEdecl d)) (canonical_decl d)
+       | SEdecl d -> Option.map (fun d -> (l, SEdecl d)) (canonical_decl dropped d)
        | SEmodule m ->
-           Some (l, SEmodule { m with ml_mod_expr = canonical_mexpr m.ml_mod_expr })
+           Some (l, SEmodule { m with ml_mod_expr = canonical_mexpr dropped m.ml_mod_expr })
        | SEmodtype _ -> Some (l, e))
     sel
 
-and canonical_mexpr = function
-  | MEstruct (mp, sel) -> MEstruct (mp, canonical_elems sel)
+and canonical_mexpr dropped = function
+  | MEstruct (mp, sel) -> MEstruct (mp, canonical_elems dropped sel)
   | MEident _ | MEfunctor _ | MEapply _ as me -> me
 
+(* Returns the rewritten structure together with the canonical references
+   of the alias blocks that were dropped. Those must be added to the
+   objects to appear: an alias block is in the structure only because its
+   module was needed, and with the block gone, nothing else may keep the
+   canonical block alive (e.g. a request for the alias module itself,
+   whose path is not a reference that could be redirected). *)
+
 let canonicalize_inductives struc =
-  List.map (fun (mp, sel) -> (mp, canonical_elems sel)) struc
+  let dropped = ref [] in
+  let struc = List.map (fun (mp, sel) -> (mp, canonical_elems dropped sel)) struc in
+  struc, !dropped
 
 let optimize_struct table to_appear struc =
-  let struc = if lang () == Java then canonicalize_inductives struc else struc in
+  let struc, to_appear =
+    if lang () == Java && not (Common.State.get_modular table) then
+      let struc, dropped = canonicalize_inductives struc in
+      struc, (List.map canonical_ref (fst to_appear) @ dropped, snd to_appear)
+    else struc, to_appear
+  in
   let subst = ref (Refmap'.empty : ml_ast Refmap'.t) in
   let opt_struc =
     List.map (fun (mp,lse) -> (mp, optim_se (Common.State.get_table table) true (fst to_appear) subst lse))

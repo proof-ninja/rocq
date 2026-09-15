@@ -31,6 +31,11 @@ val msid_of_mt : ml_module_type -> ModPath.t
 
 val get_decl_in_structure : global -> ml_structure -> ml_decl
 
+(* The reference to the block an inductive is declared under in Java
+   extraction: the canonical name, even when [r] mentions a module alias. *)
+
+val canonical_ref : global -> global
+
 (* Some transformations of ML terms. [optimize_struct] simplify
    all beta redexes (when the argument does not occur, it is just
    thrown away; when it occurs exactly once it is substituted; otherwise
