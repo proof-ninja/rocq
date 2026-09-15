@@ -118,7 +118,9 @@ module Visit : VISIT = struct
          ([Modutil.canonicalize_inductives]), so that block is needed even
          when only an alias name is mentioned. Marking it also marks its
          module path, which in modular mode would pull in a whole file that
-         nothing else asked for; hence the flag. *)
+         nothing else asked for; hence the flag (to be lifted together with
+         the gate in [Modutil.optimize_struct] when issue #30 adds multi-file
+         Java output). *)
       if v.canonical_inductives then add_kn v (MutInd.canonical ind) r.inst
     | VarRef _ -> assert false
   let add_decl_deps v decl =

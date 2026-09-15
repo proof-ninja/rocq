@@ -458,7 +458,9 @@ let check_for_remaining_implicits struc =
    and [Recursive Extraction]). In modular mode ([Separate Extraction],
    [Extraction Library]) the canonical block lives in another file, and
    Java has no way to refer to it (no imports, no qualification), so the
-   redirection is not applied there. *)
+   redirection is not applied there. Multi-file Java output is tracked in
+   issue #30; supporting it means lifting this gate (and the matching one
+   in [Visit.make]) and referring to the canonical block across files. *)
 
 let canonical_mind kn =
   let c = MutInd.canonical kn in
