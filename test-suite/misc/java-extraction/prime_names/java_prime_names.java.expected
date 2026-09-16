@@ -1,0 +1,62 @@
+import java.util.function.Function;
+
+class java_prime_names {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface t$ {}
+public static class C$ implements t$ {
+  final nat C$0;
+  
+  C$(nat C$0) {
+    this.C$0 = C$0;
+    }
+    
+  }
+
+public static class D$ implements t$ {
+  
+  D$() {
+    }
+    
+  }
+
+static Function<nat, nat> succ$ = n -> ((nat) new S(n))
+  ;
+
+static Function<nat, t$> build$ = n -> ((t$) new C$(succ$.apply(n)))
+  ;
+
+static Function<t$, nat> unwrap$ = x ->
+  ((x instanceof C$) ? let(((C$)x).C$0, n$ -> n$)
+  : (x instanceof D$) ? ((nat) new O())
+  : error("non-exhaustive match"))
+  ;
+
+}

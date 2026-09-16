@@ -24,3 +24,4 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" module_alias
 "$self_dir/java-extraction/run-case.sh" module_alias_direct
 "$self_dir/java-extraction/run-case.sh" module_alias_module
+"$self_dir/java-extraction/run-case.sh" prime_names

@@ -686,7 +686,7 @@ let pp_java_constructor classname ty_name_list =
    and routes them through the working [pp_ind] scheme. *)
 let pp_singleton table packet =
   let name = pp_global_name table Type packet.ip_typename_ref in
-  let fieldname = Id.print packet.ip_consnames.(0) in
+  let fieldname = pr_id packet.ip_consnames.(0) in
   let ty = pp_type table (List.hd packet.ip_types.(0)) in
   str "public static class " ++ name ++ str " {" ++ fnl() ++
     pp_instance_var ty fieldname ++ fnl() ++
