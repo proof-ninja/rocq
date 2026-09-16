@@ -671,14 +671,6 @@ let pp_global table k r = str (str_global table k r)
 
 let pp_global_name table k r = str (Common.pp_global table k r)
 
-let pp_equiv table name inst = function
-  | NoEquiv, _ -> mt ()
-  | Equiv kn, i ->
-    let r = { glob = GlobRef.IndRef (MutInd.make1 kn, i); inst } in
-    str " = " ++ pp_global table Type r
-  | RenEquiv ren, _  ->
-      str " = " ++ str (ren^".") ++ name
-
 let pp_instance_var t name = str "final " ++ t ++ str " " ++ name ++ str ";" ++ fnl()
 let pp_java_constructor classname ty_name_list = 
   hv 2 (classname ++ paren (prlist_with_sep (fun () -> str ", ") (fun (t, name) -> t ++ str " " ++ name) ty_name_list) ++ str " {" ++ fnl() ++
@@ -702,7 +694,7 @@ let pp_singleton table packet =
     ++ str "}" ++ fnl2()
 
 (* one [Inductive a := ... .] *)
-let pp_one_ind table inst ip_equiv name cnames ctyps =
+let pp_one_ind table name cnames ctyps =
   let pp_constructor i typs =
     hv 2 (str "public static class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
     (* "value" is dummy, must be changed *)
@@ -711,11 +703,12 @@ let pp_one_ind table inst ip_equiv name cnames ctyps =
         hv 2 (pp_java_constructor cnames.(i) (List.mapi (fun j t -> (pp_type table t, cnames.(i) ++ str (string_of_int j))) typs)) ++ fnl() ++
     str "}") ++ fnl2()
   in
-  name ++
-  pp_equiv table name inst ip_equiv ++ str " {}" ++ fnl()
+  name ++ str " {}" ++ fnl()
   ++ v 0 (prvecti pp_constructor ctyps)
 
-(* [Inductive] may be mutual recursive *)
+(* [Inductive] may be mutual recursive. A block that only re-exports
+   another one under a module alias never reaches this printer: see
+   [Modutil.canonicalize_inductives]. *)
 let pp_ind table ind =
   let initkwd = str "public interface " in
   let names =
@@ -734,14 +727,12 @@ let pp_ind table ind =
     if i >= Array.length ind.ind_packets then mt ()
     else
       let ip = ind.ind_packets.(i).ip_typename_ref in
-      let ip_equiv = ind.ind_equiv, i in
       let p = ind.ind_packets.(i) in
       if is_custom ip then pp (i+1)
       else if p.ip_logical then pp_comment (str "logical inductive") ++ fnl()
       else (* essential *)
-        let inst = p.ip_typename_ref.inst in
         initkwd ++
-        pp_one_ind table inst ip_equiv names.(i) cnames.(i) p.ip_types ++
+        pp_one_ind table names.(i) cnames.(i) p.ip_types ++
         pp (i+1)
   in
   pp 0

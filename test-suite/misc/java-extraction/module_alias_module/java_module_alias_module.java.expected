@@ -1,0 +1,80 @@
+import java.util.function.Function;
+
+class java_module_alias_module {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface float_class {}
+public static class PNormal implements float_class {
+  
+  PNormal() {
+    }
+    
+  }
+
+public static class NNormal implements float_class {
+  
+  NNormal() {
+    }
+    
+  }
+
+public static class PSubn implements float_class {
+  
+  PSubn() {
+    }
+    
+  }
+
+public static class NSubn implements float_class {
+  
+  NSubn() {
+    }
+    
+  }
+
+public static class PZero implements float_class {
+  
+  PZero() {
+    }
+    
+  }
+
+public static class NZero implements float_class {
+  
+  NZero() {
+    }
+    
+  }
+
+public static class PInf implements float_class {
+  
+  PInf() {
+    }
+    
+  }
+
+public static class NInf implements float_class {
+  
+  NInf() {
+    }
+    
+  }
+
+public static class NaN implements float_class {
+  
+  NaN() {
+    }
+    
+  }
+
+}

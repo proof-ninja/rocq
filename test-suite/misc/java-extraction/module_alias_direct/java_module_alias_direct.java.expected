@@ -1,0 +1,145 @@
+import java.util.function.Function;
+
+class java_module_alias_direct {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface float_class {}
+public static class PNormal implements float_class {
+  
+  PNormal() {
+    }
+    
+  }
+
+public static class NNormal implements float_class {
+  
+  NNormal() {
+    }
+    
+  }
+
+public static class PSubn implements float_class {
+  
+  PSubn() {
+    }
+    
+  }
+
+public static class NSubn implements float_class {
+  
+  NSubn() {
+    }
+    
+  }
+
+public static class PZero implements float_class {
+  
+  PZero() {
+    }
+    
+  }
+
+public static class NZero implements float_class {
+  
+  NZero() {
+    }
+    
+  }
+
+public static class PInf implements float_class {
+  
+  PInf() {
+    }
+    
+  }
+
+public static class NInf implements float_class {
+  
+  NInf() {
+    }
+    
+  }
+
+public static class NaN implements float_class {
+  
+  NaN() {
+    }
+    
+  }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface point {}
+public static class P implements point {
+  final nat P0;
+  final nat P1;
+  
+  P(nat P0, nat P1) {
+    this.P0 = P0;
+    this.P1 = P1;
+    }
+    
+  }
+
+public interface rec {}
+public static class MkRec implements rec {
+  final nat MkRec0;
+  final nat MkRec1;
+  
+  MkRec(nat MkRec0, nat MkRec1) {
+    this.MkRec0 = MkRec0;
+    this.MkRec1 = MkRec1;
+    }
+    
+  }
+
+static Function<Function<nat, Function<nat, Object>>, Function<point, Object>>
+  point_rect = p0 -> p ->
+  ((p instanceof P) ? let(((P)p).P0, n ->
+                      let(((P)p).P1, n0 -> p0.apply(n).apply(n0)))
+  : error("non-exhaustive match"))
+  ;
+
+static Function<Function<nat, Function<nat, Object>>, Function<point, Object>>
+  point_rec = p0 -> p ->
+  ((p instanceof P) ? let(((P)p).P0, n ->
+                      let(((P)p).P1, n0 -> p0.apply(n).apply(n0)))
+  : error("non-exhaustive match"))
+  ;
+
+static Function<rec, nat> rx = r ->
+  ((r instanceof MkRec) ? let(((MkRec)r).MkRec0, rx0 -> rx0)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<rec, nat> ry = r ->
+  ((r instanceof MkRec) ? let(((MkRec)r).MkRec1, ry0 -> ry0)
+  : error("non-exhaustive match"))
+  ;
+
+}

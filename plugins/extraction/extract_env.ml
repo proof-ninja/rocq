@@ -50,8 +50,11 @@ let environment_until dir_opt =
 
 module type VISIT = sig
   type t
-  (* Environment of visited data *)
-  val make : unit -> t
+  (* Environment of visited data. With [canonical_inductives], every
+     inductive reference also marks the block declared under its canonical
+     name as needed (monolithic Java extraction, see
+     [Modutil.canonicalize_inductives]). *)
+  val make : canonical_inductives:bool -> t
 
   (* Add the module_path and all its prefixes to the mp visit list.
      We'll keep all fields of these modules. *)
@@ -85,12 +88,14 @@ module Visit : VISIT = struct
   type t =
       { mutable kn : KNset.t;
         mutable mp : ModPath.Set.t;
-        mutable mp_all : ModPath.Set.t }
+        mutable mp_all : ModPath.Set.t;
+        canonical_inductives : bool }
   (* the imperative internal visit lists *)
-  let make () = {
+  let make ~canonical_inductives = {
     kn = KNset.empty;
     mp = ModPath.Set.empty;
     mp_all = ModPath.Set.empty;
+    canonical_inductives;
   }
   (* the accessor functions *)
   let needed_ind v i inst = KNset.mem (MutInd.user i, inst) v.kn
@@ -106,7 +111,17 @@ module Visit : VISIT = struct
   let add_kn v kn inst = v.kn <- KNset.add (kn, inst) v.kn; add_mp v (KerName.modpath kn)
   let add_ref v r = let open GlobRef in match r.glob with
     | ConstRef c -> add_kn v (Constant.user c) r.inst
-    | IndRef (ind,_) | ConstructRef ((ind,_),_) -> add_kn v (MutInd.user ind) r.inst
+    | IndRef (ind,_) | ConstructRef ((ind,_),_) ->
+      add_kn v (MutInd.user ind) r.inst;
+      (* Monolithic Java extraction redirects every inductive reference to
+         the block declared under its canonical name
+         ([Modutil.canonicalize_inductives]), so that block is needed even
+         when only an alias name is mentioned. Marking it also marks its
+         module path, which in modular mode would pull in a whole file that
+         nothing else asked for; hence the flag (to be lifted together with
+         the gate in [Modutil.optimize_struct] when issue #30 adds multi-file
+         Java output). *)
+      if v.canonical_inductives then add_kn v (MutInd.canonical ind) r.inst
     | VarRef _ -> assert false
   let add_decl_deps v decl =
     decl_iter_references (fun kn -> add_ref v kn) (fun r -> add_ref v r) (fun r -> add_ref v r) decl
@@ -497,7 +512,8 @@ and extract_module table access venv env mp ~all mb =
     ml_mod_type = typ }
 
 let mono_environment table ~opaque_access refs mpl =
-  let venv = Visit.make () in
+  let canonical_inductives = lang () == Java && not (State.get_modular table) in
+  let venv = Visit.make ~canonical_inductives in
   let () = List.iter (fun r -> Visit.add_ref venv r) refs in
   let () = List.iter (fun mp -> Visit.add_mp_all venv mp) mpl in
   let env = Global.env () in
@@ -745,6 +761,10 @@ let simple_extraction ~opaque_access r =
   | ([], [mp]) as p -> full_extr opaque_access None p
   | [r],[] ->
       let table = init ~modular:false ~library:false () in
+      (* Java declares an aliased inductive only under its canonical name
+         (see [Modutil.canonicalize_inductives]), so that is the
+         declaration to look up and print. *)
+      let r = if lang () == Java then canonical_ref r else r in
       let struc = optimize_struct table ([r],[]) (mono_environment table ~opaque_access [r] []) in
       let d = get_decl_in_structure r struc in
       let () = warns table in
@@ -768,7 +788,7 @@ let extraction_library ~opaque_access is_rec CAst.{loc;v=m} =
     try Nametab.full_name_module q with Not_found -> error_unknown_module ?loc q
   in
   let dir_m = dirpath_of_path dir_m in
-  let venv = Visit.make () in
+  let venv = Visit.make ~canonical_inductives:false in
   let () = Visit.add_mp_all venv (MPfile dir_m) in
   let env = Global.env () in
   let l = List.rev (environment_until (Some dir_m)) in
