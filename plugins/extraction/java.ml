@@ -370,7 +370,9 @@ let rec type_of_expr tenv = function
        | Some ft -> strip_arrows ft (List.length args)
        | None -> None)
   | MLletin (_, a1, a2) -> type_of_expr (type_of_expr tenv a1 :: tenv) a2
-  | MLmagic _ (* exists precisely because the ML types disagree *)
+  (* Invisible in the Java output: [pp_expr]'s own [MLmagic] case forwards
+     [expected] and [args] to [a], so the printed type is [a]'s. *)
+  | MLmagic a -> type_of_expr tenv a
   | MLlam _ | MLcase _ | MLfix _ | MLexn _ | MLdummy _ | MLaxiom _
   | MLtuple _ | MLuint _ | MLfloat _ | MLstring _ | MLparray _ -> None
 
