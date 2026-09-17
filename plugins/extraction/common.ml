@@ -97,9 +97,18 @@ let begins_with_CoqXX s =
   done; true
   with Not_found -> false
 
+(* Rocq identifiers may contain ['], which some target languages do not
+   accept. Replacing it at printing time is enough: neither [~] nor [$] can
+   occur in a Rocq identifier, so the substitution is injective and distinct
+   names stay distinct. (Doing it at renaming time is not an option: [$] is
+   not a valid identifier character for [Id.of_string].) The Java backend
+   applies the same [$] substitution to local binders in [Java.pr_id]. *)
 let unquote s =
-  if lang () != Scheme then s
-  else String.map (fun c -> if c == '\'' then '~' else c) s
+  let subst repl = String.map (fun c -> if c == '\'' then repl else c) s in
+  match lang () with
+  | Scheme -> subst '~'
+  | Java -> subst '$'
+  | Ocaml | Haskell | JSON -> s
 
 let rec qualify delim = function
   | [] -> assert false
@@ -703,7 +712,7 @@ let pp_global table k r =
 let pp_global_name table k r =
   let ls = ref_renaming table (k,r) in
   assert (List.length ls > 1);
-  List.hd ls
+  unquote (List.hd ls)
 
 (* The next function is used only in Ocaml extraction...*)
 
