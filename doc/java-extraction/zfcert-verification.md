@@ -14,17 +14,26 @@ doc/java-extraction/zfcert-check.sh
 
 ## 前提となる配置
 
+3 つのリポジトリを同じ親ディレクトリに並べる(sibling 配置)。
+
 | パス | 内容 |
 |------|------|
-| `~/src/proofninja/rocq` | この fork。`make world` でビルド済みであること |
-| `~/src/proofninja/stdlib` | rocq-prover/stdlib。fork の rocq でビルド済みであること |
-| `~/src/proofninja/zfcert` | mir-ikbch/zfcert の clone |
+| `<親>/rocq` | この fork。`make world` でビルド済みであること |
+| `<親>/stdlib` | rocq-prover/stdlib。fork の rocq でビルド済みであること |
+| `<親>/zfcert` | mir-ikbch/zfcert の clone |
+
+以下の各ステップのコマンドは **fork のルート(`<親>/rocq`)から始める**前提で
+書いてあり、sibling は `../stdlib` / `../zfcert` の相対パスで参照する
+(`cd ../zfcert` のように書いてあるので、3 つのどこにいても同じコマンドで移動できる)。
+`zfcert-check.sh` も自身の位置から sibling を割り出す。
 
 ## 0. 初回のみ: リポジトリの取得
 
 ```sh
-git clone https://github.com/mir-ikbch/zfcert ~/src/proofninja/zfcert
-git clone https://github.com/rocq-prover/stdlib ~/src/proofninja/stdlib
+git clone https://github.com/proof-ninja/rocq.git -b doc/zfcert-verification   # この fork(手順書を含むブランチ)
+cd rocq
+git clone https://github.com/mir-ikbch/zfcert ../zfcert
+git clone https://github.com/rocq-prover/stdlib ../stdlib
 ```
 
 ## 1. 初回のみ: Stdlib のビルド
@@ -34,31 +43,33 @@ ZFCert は Stdlib(`List` / `PeanoNat` / `String` / `Bool` / `DecimalString`)に
 本体から分離された)、**fork の rocq で** Stdlib をビルドする必要がある。
 
 ```sh
-cd ~/src/proofninja/stdlib
-PATH=~/src/proofninja/rocq/_build/install/default/bin:$PATH make -j"$(nproc)"
+cd ../stdlib
+PATH="$(cd ../rocq && pwd)/_build/install/default/bin:$PATH" make -j"$(nproc)"
 ```
+
+(`PATH` は相対パスにできないので `pwd` で絶対パスにしている。)
 
 - 2026-08-27 時点の stdlib master は fork (9.3+alpha) でそのまま全ビルドできる。
   ビルドが通らなくなったら、fork のベース時期に近い stdlib のコミットに checkout
   し直す(バージョン不整合はデバッグ対象ではない)。
 - `make install` は**使わない**。インストール先の `_build/install/default` は
   fork の `make world` で再生成されて消えるため。参照は常に
-  `-Q ~/src/proofninja/stdlib/theories Stdlib` で行う。
+  `-Q ../stdlib/theories Stdlib` で行う。
 - fork の rocq を再ビルドしても、kernel のインターフェースが変わらない限り
   stdlib の .vo はそのまま使い回せる。`Compiled library ... makes inconsistent
   assumptions` 系のエラーが出たら stdlib を `make clean && make` し直す。
 
-## 2. ZFCert の Coq ソースのコンパイル
+## 2. ZFCert の Rocq ソースのコンパイル
 
 java.ml の修正だけなら .vo は変わらないので再実行不要。fork の rocq を
 再ビルドした直後や初回のみ:
 
 ```sh
-cd ~/src/proofninja/zfcert
-ROCQ=~/src/proofninja/rocq/_build/install/default/bin/rocq
+cd ../zfcert
+ROCQ=../rocq/_build/install/default/bin/rocq
 for f in FOL ZFC ProofState TacticCompleteness NamedProofState NamedCommands \
          CertifiedSession GlobalEnvironment Audit; do
-  $ROCQ c -q -Q ~/src/proofninja/stdlib/theories Stdlib -Q coq ZFCert coq/$f.v || break
+  $ROCQ c -q -Q ../stdlib/theories Stdlib -Q coq ZFCert coq/$f.v || break
 done
 ```
 
@@ -66,17 +77,18 @@ done
 
 ## 3. Java 抽出
 
-抽出エントリポイントは `~/src/proofninja/zfcert/ExtractJavaProofState.v`
+抽出エントリポイントは `../zfcert/ExtractJavaProofState.v`
 (zfcert リポジトリ直下、untracked)。消えていた場合は本書末尾の付録から復元する。
 これは `coq/ExtractProofState.v` から OCaml 専用部分(`ExtrOcaml*` の import と
 `Extract Constant nat_to_decimal_string`)を除き、出力先と言語を Java に変えた
 もので、**抽出対象の 50 定義のリストは同一**。
 
 ```sh
-cd ~/src/proofninja/zfcert
+cd ../zfcert
+ROCQ=../rocq/_build/install/default/bin/rocq
 OUT=/tmp/zfcert-java   # 出力先は任意
 mkdir -p $OUT
-$ROCQ c -q -Q ~/src/proofninja/stdlib/theories Stdlib -Q coq ZFCert \
+$ROCQ c -q -Q ../stdlib/theories Stdlib -Q coq ZFCert \
   ExtractJavaProofState.v
 ```
 
@@ -133,7 +145,7 @@ Java に移植したもので、named formula を直接構築して certified �
 
 ```sh
 cd /tmp/zfcert-java   # 抽出出力先
-cp <fork>/doc/java-extraction/DriverZfcert.java .
+cp <fork のルート>/doc/java-extraction/DriverZfcert.java .   # 出力先からは相対にできないので絶対パスで
 javac zfcert.java DriverZfcert.java
 java DriverZfcert
 ```
@@ -158,7 +170,7 @@ java DriverZfcert
 
 ## 付録: ExtractJavaProofState.v
 
-`~/src/proofninja/zfcert/ExtractJavaProofState.v` が無い場合は以下を復元する
+`../zfcert/ExtractJavaProofState.v`(zfcert リポジトリ直下)が無い場合は以下を復元する
 (出力先ディレクトリは適宜変更):
 
 ```coq
