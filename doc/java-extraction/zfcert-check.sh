@@ -34,13 +34,14 @@ wc -c "$OUT/zfcert.java"
 
 echo "== javac =="
 cd "$OUT"
-if javac -Xmaxerrs 2000 zfcert.java 2> javac_errors.txt; then
+# -J-Duser.language=en: メッセージを英語に固定し、ロケールに依らず error: で数える
+if javac -J-Duser.language=en -Xmaxerrs 2000 zfcert.java 2> javac_errors.txt; then
   echo "OK: javac がエラーなしで通りました"
 else
-  total=$(grep -c "エラー:" javac_errors.txt || true)
-  echo "NG: javac エラー $total 件 (基準値は 2026-08-27 時点で 921 件)"
+  total=$(grep -c "error:" javac_errors.txt || true)
+  echo "NG: javac エラー $total 件"
   echo "-- 内訳 --"
-  grep "エラー:" javac_errors.txt \
+  grep "error:" javac_errors.txt \
     | sed 's/zfcert.java:[0-9]*: //' | sort | uniq -c | sort -rn
   echo "-- 詳細: $OUT/javac_errors.txt --"
   exit 1
@@ -48,7 +49,7 @@ fi
 
 echo "== runtime (DriverZfcert) =="
 cp "$BASE/doc/java-extraction/DriverZfcert.java" "$OUT/"
-javac zfcert.java DriverZfcert.java 2> driver_javac_errors.txt || {
+javac -J-Duser.language=en zfcert.java DriverZfcert.java 2> driver_javac_errors.txt || {
   echo "NG: ドライバのコンパイルに失敗しました ($OUT/driver_javac_errors.txt)" >&2
   exit 1
 }

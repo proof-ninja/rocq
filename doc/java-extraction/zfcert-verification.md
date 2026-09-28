@@ -1,8 +1,8 @@
 # ZFCert Java 抽出の検証手順
 
 issue #28 (https://github.com/proof-ninja/rocq/issues/28) の検証手順書。
-sub-issue (#31, #32, ...) を修正するたびにこの手順を再実行し、javac エラーが
-期待通り減っているか(最終的にはゼロになるか)を確認する。
+java.ml を修正するたびにこの手順を再実行し、「javac エラーゼロ + ランタイム検証
+全パス」が保たれていることを確認する。
 
 ワンコマンド版: このディレクトリの [`zfcert-check.sh`](./zfcert-check.sh) が
 下記のステップ 3〜5(抽出 → javac → ランタイム検証)を自動実行する
@@ -95,46 +95,33 @@ $ROCQ c -q -Q ../stdlib/theories Stdlib -Q coq ZFCert \
 ※ 出力先は `ExtractJavaProofState.v` 内の `Set Extraction Output Directory` で
 指定されている。変えたい場合はそこを書き換える。
 
-**期待**: 抽出コマンド自体はエラーなしで完走し、`zfcert.java`(約 476KB)が
-生成される。抽出段階のエラーは新規バグとして扱う。
+**期待**: 抽出コマンド自体はエラーなしで完走し、`zfcert.java` が生成される。
+抽出段階のエラーは新規バグとして扱う。
 
 ## 4. javac によるコンパイル
 
 ```sh
 cd <出力先>
-javac -Xmaxerrs 2000 zfcert.java 2> javac_errors.txt
-rg -c "エラー:" javac_errors.txt          # 総エラー数
-rg "エラー:" javac_errors.txt | sed 's/zfcert.java:[0-9]*: //' | sort | uniq -c | sort -rn
+javac -J-Duser.language=en -Xmaxerrs 2000 zfcert.java 2> javac_errors.txt
+grep -c "error:" javac_errors.txt          # 総エラー数
+grep "error:" javac_errors.txt | sed 's/zfcert.java:[0-9]*: //' | sort | uniq -c | sort -rn
 ```
 
-### 基準値 (2026-08-27, feat/java-dtype = 99718f15a8 時点)
+`-J-Duser.language=en` は javac のメッセージを英語に固定するため(シェルのロケールに
+よってメッセージ言語が変わり、`error:` の grep が効かなくなるのを防ぐ)。
 
-総エラー数 **921**。内訳:
+**期待**: エラーゼロ。エラーが出たら上記の内訳で分類し、issue 化する。
 
-| 件数 | エラー | 原因 |
-|-----|--------|------|
-| 400 | `java.lang.String を zfcert.String に変換できません` | #31 (String シャドウイング) |
-| 352 | `シンボルを見つけられません`(全て Record のコンストラクタ名) | #32 (Record 不整合) |
-| 86 | `Object を list に変換できません` | #32 の波及 |
-| 60 | `条件式の型が不正です` | #32 の波及 |
-| 21 | `Object を formula / named_formula に変換できません` | #32 の波及 |
-| 1 | `RuntimeException に適切なコンストラクタが見つかりません` | #31 |
-| 1 | `ラムダ式の戻り型が不正です` | 未分類(#31/#32 修正後に再判定) |
+### 経緯
 
-- **#31 修正後の期待**: `String` 系の 401 件が消える。
-  → **実測済み (2026-08-27, fix/java-string-shadow + feat/java-dtype の合流ビルド)**:
-  921 → **520** 件。String 系は全滅し、残りは全て #32 系。
-  注意: Dtype 対応(PR #27)を含まないビルドでは型シノニムが裸の `type` トークンとして
-  出力されて**構文エラー 2 件**になり、javac が意味解析に進まないため件数比較ができない。
-  #31 以降の測定は PR #27 を含むビルドで行うこと。
-- **#32 修正後の期待**: 未解決シンボル 352 件と `Object を〜に変換できません` 系の
-  波及が消える。残ったエラーが「独立したキャスト漏れ」の候補であり、第 2 ラウンド
-  として分類・issue 化する。
-  → **実測済み (2026-08-27, #27+#31+#32 の合流ビルド)**: 520 → **0 件、javac 通過**。
-  独立したキャスト漏れは存在しなかった(「条件式の型が不正」等も全て record 波及)。
-  以後の回帰基準は「javac エラーゼロ」。次はステップ 5(ランタイム検証)へ。
-- **最終ゴール**: javac がエラーゼロで通り、その後ランタイム検証(簡単なドライバで
-  `start` → `step` 等を駆動)に進む。
+| 時点 | 総エラー数 | 内容 |
+|------|-----------|------|
+| 2026-08-27, 修正前 | 921 | #31 (String シャドウイング) 401 件、#32 (Record 不整合とその波及) 520 件 |
+| #31 修正後 | 520 | 残りは全て #32 系 |
+| #32 修正後 | 0 | 独立したキャスト漏れは無かった |
+
+注意: 型シノニム対応(PR #27)を含まないビルドでは構文エラーで javac が意味解析に
+進まないため、件数比較は PR #27 を含むビルドで行うこと。
 
 ## 5. ランタイム検証
 
@@ -161,9 +148,9 @@ java DriverZfcert
 | bad refl | `x = y` への `equal_refl` が `NCoreError` で拒否される |
 | unknown hypothesis | 未知の仮説名参照が `NHypothesisNotFound` で拒否される |
 
-- **実測 (2026-09-01, PR #34 マージ後の java_extraction ビルド)**: 全 12 チェック成功。
-  「All 12 runtime checks passed.」が出れば OK。以後の回帰基準は
-  「javac エラーゼロ + ランタイム検証全パス」(`zfcert-check.sh` が両方を検査する)。
+- **期待**: 「All 12 runtime checks passed.」が出ること(2026-09-01、PR #34 マージ後の
+  ビルドで確認済み)。回帰基準は「javac エラーゼロ + ランタイム検証全パス」で、
+  `zfcert-check.sh` が両方を検査する。
 - 対象範囲: 抽出カーネル(certified セッション)のみ。`.zfp` サンプルの実行には
   OCaml 側の表層パーサ(`Proof_session` / `Parser`)が必要で、Java には存在しないため
   対象外。
