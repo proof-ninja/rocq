@@ -20,7 +20,7 @@ a2) {
   return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
 }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -37,7 +37,9 @@ public static class S implements nat {
     
   }
 
-public interface bool {}
+}
+
+public interface bool {
 public static class True implements bool {
   
   True() {
@@ -52,21 +54,24 @@ public static class False implements bool {
     
   }
 
+}
+
 static Function<bool, Object> dep = b ->
-  ((b instanceof True) ? ((nat) new S(((nat) new O())))
-  : (b instanceof False) ? ((bool) new False())
+  ((b instanceof bool.True) ? ((nat) new nat.S(((nat) new nat.O())))
+  : (b instanceof bool.False) ? ((bool) new bool.False())
   : error("non-exhaustive match"))
   ;
 
 static Function<nat, nat> combine = n -> fix2(add -> m -> n0 ->
   (let(m, scrutinee ->
-   (scrutinee instanceof O) ? n0
-   : (scrutinee instanceof S) ? let(((S)scrutinee).S0, m$ ->
-                                ((nat) new S(add.apply(m$).apply(n0))))
+   (scrutinee instanceof nat.O) ? n0
+   : (scrutinee instanceof nat.S) ? let(((nat.S)scrutinee).S0, m$ ->
+                                    ((nat)
+                                    new nat.S(add.apply(m$).apply(n0))))
    : error("non-exhaustive match")))
-  , dep.apply(((bool) new True())), n)
+  , dep.apply(((bool) new bool.True())), n)
   ;
 
-static nat result = combine.apply(((nat) new S(((nat) new O()))));
+static nat result = combine.apply(((nat) new nat.S(((nat) new nat.O()))));
 
 }

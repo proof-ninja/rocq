@@ -1,17 +1,17 @@
 public class DriverModuleAlias {
   static java_module_alias.nat intToNat(int n) {
-    java_module_alias.nat r = new java_module_alias.O();
+    java_module_alias.nat r = new java_module_alias.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_module_alias.S(r);
+      r = new java_module_alias.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_module_alias.nat n) {
     int i = 0;
-    while (n instanceof java_module_alias.S) {
+    while (n instanceof java_module_alias.nat.S) {
       i++;
-      n = ((java_module_alias.S) n).S0;
+      n = ((java_module_alias.nat.S) n).S0;
     }
     return i;
   }
@@ -29,7 +29,7 @@ public class DriverModuleAlias {
 
     // A value built through the canonical name flows through the alias-typed
     // function and back: fst_of (back (P 3 4)) = 3.
-    java_module_alias.point p = new java_module_alias.P(intToNat(3), intToNat(4));
+    java_module_alias.point p = new java_module_alias.point.P(intToNat(3), intToNat(4));
     check("fst_of back", 3, java_module_alias.fst_of.apply(java_module_alias.back.apply(p)));
 
     // rec_sum (mk_rec 2 5) = 7, rec_x (mk_rec 2 5) = 2
@@ -41,7 +41,7 @@ public class DriverModuleAlias {
     // once, under its canonical name.
     check("two_digits", 2, java_module_alias.two_digits);
     java_module_alias.positive five =
-        new java_module_alias.XI(new java_module_alias.XO(new java_module_alias.XH()));
+        new java_module_alias.positive.XI(new java_module_alias.positive.XO(new java_module_alias.positive.XH()));
     check("digits", 3, java_module_alias.digits.apply(five));
   }
 }

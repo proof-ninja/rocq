@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,18 +30,20 @@ public static class S implements nat {
     
   }
 
+}
+
 static Function<Object, Object> poly_id = x -> x
   ;
 
 static Function<Function<nat, nat>, Function<nat, nat>>
   apply_through_id = f -> x ->
   ((nat) ((Function<Object, Object>) poly_id.apply(f)).apply(((nat)
-                                                      new S(x))))
+                                                      new nat.S(x))))
   ;
 
 static nat
   result = apply_through_id.apply(x -> ((nat)
-                           new S(x))
-                           ).apply(((nat) new O()));
+                           new nat.S(x))
+                           ).apply(((nat) new nat.O()));
 
 }

@@ -433,6 +433,19 @@ let warn_extraction_reserved_identifier =
 
 let warning_id s = warn_extraction_reserved_identifier s
 
+let warn_extraction_java_class_clash =
+  CWarnings.create ~name:"extraction-java-class-clash" ~category:CWarnings.CoreCategories.extraction
+    (fun (r, clash, renamed) ->
+       strbrk "The Java class name for " ++ safe_pr_global r ++
+       strbrk " clashes with the class " ++ str clash ++
+       strbrk " (Java forbids a nested class named like an enclosing one, \
+                and case-insensitive file systems cannot hold class files \
+                differing only in case), so it is renamed to " ++
+       str renamed ++ str ".")
+
+let warning_java_class_clash r clash renamed =
+  warn_extraction_java_class_clash (r, clash, renamed)
+
 let error_constant ?loc r =
   err ?loc (safe_pr_global r ++ str " is not a constant.")
 

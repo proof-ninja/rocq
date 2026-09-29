@@ -1,9 +1,9 @@
 public class DriverMagicApply {
   static int natToInt(java_magic_apply.nat n) {
     int i = 0;
-    while (n instanceof java_magic_apply.S) {
+    while (n instanceof java_magic_apply.nat.S) {
       i++;
-      n = ((java_magic_apply.S) n).S0;
+      n = ((java_magic_apply.nat.S) n).S0;
     }
     return i;
   }

@@ -1,25 +1,25 @@
 public class DriverPolyHead {
   static java_poly_head.nat intToNat(int n) {
-    java_poly_head.nat r = new java_poly_head.O();
+    java_poly_head.nat r = new java_poly_head.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_poly_head.S(r);
+      r = new java_poly_head.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_poly_head.nat n) {
     int i = 0;
-    while (n instanceof java_poly_head.S) {
+    while (n instanceof java_poly_head.nat.S) {
       i++;
-      n = ((java_poly_head.S) n).S0;
+      n = ((java_poly_head.nat.S) n).S0;
     }
     return i;
   }
 
   static java_poly_head.list build(int... xs) {
-    java_poly_head.list l = new java_poly_head.Nil();
+    java_poly_head.list l = new java_poly_head.list.Nil();
     for (int i = xs.length - 1; i >= 0; i--) {
-      l = new java_poly_head.Cons(intToNat(xs[i]), l);
+      l = new java_poly_head.list.Cons(intToNat(xs[i]), l);
     }
     return l;
   }

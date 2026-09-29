@@ -219,6 +219,16 @@ module DupMap = CMap.Make(DupOrd)
   seen at this level.
 *)
 
+(*s Java emits each extracted inductive type or record as a class nested in the
+    top-level class, and each constructor as a class nested in its inductive
+    type. javac writes every nested class to its own [Outer$Inner.class] file,
+    so the classes of a same scope must have names that stay distinct on
+    case-insensitive file systems. *)
+
+type java_scope =
+  | JavaTop (* directly inside the top-level class *)
+  | JavaInd of global (* inside the class of this inductive type *)
+
 type visible_layer = { mp : ModPath.t;
                        params : MBId.t list;
                        content : Id.t KMap.t; }
@@ -233,6 +243,12 @@ type state = {
   mp_renaming : string list ModPath.Map.t;
   params_ren : MBId.Set.t; (* List of module parameters that we should alpha-rename *)
   duplicates : int * string DupMap.t; (* table of local module wrappers used to provide non-ambiguous names *)
+  (* Java: names of the classes emitted directly inside the top-level class
+     (keyed by their lowercase form) and those nested inside each inductive
+     type, see [java_class_scope] *)
+  java_top_classes : string String.Map.t;
+  java_nested_classes : string String.Map.t Refmap'.t;
+  java_top_class : string option;
 }
 
 type modular = {
@@ -270,6 +286,9 @@ let make_state kw = {
   mp_renaming = ModPath.Map.empty;
   params_ren = MBId.Set.empty;
   duplicates = (0, DupMap.empty);
+  java_top_classes = String.Map.empty;
+  java_nested_classes = Refmap'.empty;
+  java_top_class = None;
 }
 
 let make ~modular ~library ~keywords () = {
@@ -384,18 +403,40 @@ let get_duplicate s mp l =
 
 let get_mpfiles_content mdl mp = DirPath.Map.find mp mdl.mpfiles_content
 
+let set_java_top_class s name =
+  let state = s.state.contents in
+  s.state := { state with java_top_class = Some name }
+
+let get_java_classes state = function
+  | JavaTop -> state.java_top_classes
+  | JavaInd ind ->
+    Option.default String.Map.empty (Refmap'.find_opt ind state.java_nested_classes)
+
+(* The class already in [scope] that [name] cannot coexist with, if any: one
+   equal to it up to case, or the enclosing top-level class itself (JLS 8.1
+   forbids a nested class to share the simple name of an enclosing class). *)
+let find_java_class_clash s scope name =
+  let state = s.state.contents in
+  match state.java_top_class with
+  | Some top when String.equal top name -> Some top
+  | _ ->
+    String.Map.find_opt (String.lowercase_ascii name) (get_java_classes state scope)
+
+let add_java_class s scope name =
+  let state = s.state.contents in
+  let classes =
+    String.Map.add (String.lowercase_ascii name) name (get_java_classes state scope)
+  in
+  s.state := match scope with
+    | JavaTop -> { state with java_top_classes = classes }
+    | JavaInd ind ->
+      { state with java_nested_classes = Refmap'.add ind classes state.java_nested_classes }
+
 (* Reset *)
 
 let reset s =
   let () = assert (List.is_empty s.visibility) in
-  let state = {
-    global_ids = s.keywords;
-    mod_index = Id.Map.empty;
-    ref_renaming = Refmap'.empty;
-    mp_renaming = ModPath.Map.empty;
-    params_ren = MBId.Set.empty;
-    duplicates = (0, DupMap.empty);
-  } in
+  let state = make_state s.keywords in
   (* don't reset modular files content *)
   let () = match s.modular with
   | None -> ()
@@ -487,6 +528,16 @@ and mp_renaming table x =
 (*s Renamings creation for a [global_reference]: we build its fully-qualified
     name in a [string list] form (head is the short name). *)
 
+(* The scope of the Java class a reference is extracted to, if any. *)
+
+let java_class_scope k r =
+  if lang () != Java then None
+  else match k, r.glob with
+  | Type, GlobRef.IndRef _ -> Some JavaTop
+  | Cons, GlobRef.ConstructRef (ind, _) ->
+    Some (JavaInd { glob = GlobRef.IndRef ind; inst = r.inst })
+  | _ -> None
+
 let ref_renaming_fun table (k,r) =
   let mp = modpath_of_r r in
   let l = mp_renaming table mp in
@@ -500,8 +551,27 @@ let ref_renaming_fun table (k,r) =
     match l with
     | [""] -> (* this happens only at toplevel of the monolithic case *)
       let globs = State.get_global_ids table in
-      let id = next_ident_away (kindcase_id k idg) globs in
-      app_suf (Id.to_string id)
+      begin match java_class_scope k r with
+      | None ->
+        let id = next_ident_away (kindcase_id k idg) globs in
+        app_suf (Id.to_string id)
+      | Some scope ->
+        let name id = app_suf (Id.to_string id) in
+        let clash id = State.find_java_class_clash table scope (name id) in
+        let id0 = kindcase_id k idg in
+        let id =
+          next_ident_away_from id0
+            (fun id -> Id.Set.mem id globs || Option.has_some (clash id))
+        in
+        let s = name id in
+        let () = match clash id0 with
+          | Some c when not (Id.Set.mem id0 globs) ->
+            warning_java_class_clash r c s
+          | _ -> ()
+        in
+        let () = State.add_java_class table scope s in
+        s
+      end
     | _ -> app_suf (modular_rename table k idg)
   in
   let () = State.add_global_ids table (Id.of_string s) in

@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface list {}
+}
+
+public interface list {
 public static class Nil implements list {
   
   Nil() {
@@ -49,22 +51,25 @@ public static class Cons implements list {
     
   }
 
-static Function<nat, list> singleton = n -> ((list) new Cons(n, ((list)
-  new Nil())))
+}
+
+static Function<nat, list> singleton = n -> ((list) new list.Cons(n, ((list)
+  new list.Nil())))
   ;
 
 static Function<Function<nat, nat>, Function<nat, nat>> twice = f -> n ->
   f.apply(f.apply(n))
   ;
 
-static Function<nat, list> wrap = n -> ((list) new Cons(((list)
-  new Cons(n, ((list) new Nil()))), ((list) new Nil())))
+static Function<nat, list> wrap = n -> ((list) new list.Cons(((list)
+  new list.Cons(n, ((list) new list.Nil()))), ((list) new list.Nil())))
   ;
 
-static Function<nat, list> second = n -> singleton.apply(((nat) new S(n)))
+static Function<nat, list> second = n ->
+  singleton.apply(((nat) new nat.S(n)))
   ;
 
-public interface box {}
+public interface box {
 public static class Wrap implements box {
   final Function<nat, nat> Wrap0;
   
@@ -81,9 +86,11 @@ public static class Nought implements box {
     
   }
 
+}
+
 static Function<box, Function<nat, nat>> unbox = b -> n ->
-  ((b instanceof Wrap) ? let(((Wrap)b).Wrap0, f -> f.apply(n))
-  : (b instanceof Nought) ? n
+  ((b instanceof box.Wrap) ? let(((box.Wrap)b).Wrap0, f -> f.apply(n))
+  : (b instanceof box.Nought) ? n
   : error("non-exhaustive match"))
   ;
 
@@ -91,25 +98,25 @@ static Function<Function<nat, nat>, Function<nat, Function<nat, nat>>>
 iter;
 static {
 iter = f -> n -> x ->
-((n instanceof O) ? x
-: (n instanceof S) ? let(((S)n).S0, m ->
-                     f.apply(iter.apply(f).apply(m).apply(x)))
+((n instanceof nat.O) ? x
+: (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                         f.apply(iter.apply(f).apply(m).apply(x)))
 : error("non-exhaustive match"))
 ;
 }
 
 static Function<Function<nat, nat>, list> singleton_op = f -> ((list)
-  new Cons(f, ((list) new Nil())))
+  new list.Cons(f, ((list) new list.Nil())))
   ;
 
 static Function<list, Function<nat, nat>> apply_head = l -> n ->
-  ((l instanceof Nil) ? n
-  : (l instanceof Cons) ? let(((Function<nat, nat>) ((Cons)l).Cons0), f ->
-                          f.apply(n))
+  ((l instanceof list.Nil) ? n
+  : (l instanceof list.Cons) ? let(((Function<nat, nat>) ((list.Cons)l).Cons0), f ->
+                               f.apply(n))
   : error("non-exhaustive match"))
   ;
 
-static Function<Object, nat> const_zero = _ -> ((nat) new O())
+static Function<Object, nat> const_zero = _ -> ((nat) new nat.O())
   ;
 
 }

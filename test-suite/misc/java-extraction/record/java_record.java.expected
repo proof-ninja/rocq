@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface point {}
+}
+
+public interface point {
 public static class MkPoint implements point {
   final nat MkPoint0;
   final nat MkPoint1;
@@ -42,34 +44,39 @@ public static class MkPoint implements point {
     
   }
 
-static point origin = ((point) new MkPoint(((nat) new O()), ((nat)
-  new O())));
+}
+
+static point origin = ((point) new point.MkPoint(((nat) new nat.O()), ((nat)
+  new nat.O())));
 
 static Function<point, nat> getx = p ->
-  ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px -> px)
+  ((p instanceof point.MkPoint) ? let(((point.MkPoint)p).MkPoint0, px -> px)
   : error("non-exhaustive match"))
   ;
 
 static Function<point, nat> gety = p ->
-  ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py -> py)
+  ((p instanceof point.MkPoint) ? let(((point.MkPoint)p).MkPoint1, py -> py)
   : error("non-exhaustive match"))
   ;
 
 static Function<point, point> swap = p -> ((point)
-  new MkPoint(((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py -> py)
-  : error("non-exhaustive match")), ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px ->
-                                                              px)
+  new point.MkPoint(((p instanceof point.MkPoint) ? let(((point.MkPoint)p).MkPoint1, py ->
+                                                    py)
+  : error("non-exhaustive match")), ((p instanceof point.MkPoint) ? let(((point.MkPoint)p).MkPoint0, px ->
+                                                                    px)
   : error("non-exhaustive match"))))
   ;
 
-static Function<point, point> bump = p -> ((point) new MkPoint(((nat)
-  new S(((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint0, px -> px)
-  : error("non-exhaustive match")))), ((p instanceof MkPoint) ? let(((MkPoint)p).MkPoint1, py ->
-                                                                py)
+static Function<point, point> bump = p -> ((point) new point.MkPoint(((nat)
+  new nat.S(((p instanceof point.MkPoint) ? let(((point.MkPoint)p).MkPoint0, px ->
+                                            px)
+  : error("non-exhaustive match")))), ((p instanceof point.MkPoint) ? 
+                                         let(((point.MkPoint)p).MkPoint1, py ->
+                                         py)
   : error("non-exhaustive match"))))
   ;
 
-public interface tagged {}
+public interface tagged {
 public static class MkTagged implements tagged {
   final nat MkTagged0;
   final Function<nat, nat> MkTagged1;
@@ -81,16 +88,19 @@ public static class MkTagged implements tagged {
     
   }
 
-static tagged mk_inc = ((tagged) new MkTagged(((nat) new O()), x -> ((nat)
-  new S(x))
+}
+
+static tagged mk_inc = ((tagged) new tagged.MkTagged(((nat)
+  new nat.O()), x -> ((nat) new nat.S(x))
   ));
 
 static Function<tagged, Function<nat, nat>> apply_tagged = t -> n ->
-  ((t instanceof MkTagged) ? let(((MkTagged)t).MkTagged1, op -> op.apply(n))
+  ((t instanceof tagged.MkTagged) ? let(((tagged.MkTagged)t).MkTagged1, op ->
+                                    op.apply(n))
   : error("non-exhaustive match"))
   ;
 
-public interface bounded {}
+public interface bounded {
 public static class MkBounded implements bounded {
   final nat MkBounded0;
   final nat MkBounded1;
@@ -102,20 +112,24 @@ public static class MkBounded implements bounded {
     
   }
 
-static bounded mk_bounded = ((bounded) new MkBounded(((nat) new O()), ((nat)
-  new S(((nat) new O())))));
+}
+
+static bounded mk_bounded = ((bounded) new bounded.MkBounded(((nat)
+  new nat.O()), ((nat) new nat.S(((nat) new nat.O())))));
 
 static Function<bounded, nat> get_blo = b ->
-  ((b instanceof MkBounded) ? let(((MkBounded)b).MkBounded0, blo -> blo)
+  ((b instanceof bounded.MkBounded) ? let(((bounded.MkBounded)b).MkBounded0, blo ->
+                                      blo)
   : error("non-exhaustive match"))
   ;
 
 static Function<bounded, nat> get_bhi = b ->
-  ((b instanceof MkBounded) ? let(((MkBounded)b).MkBounded1, bhi -> bhi)
+  ((b instanceof bounded.MkBounded) ? let(((bounded.MkBounded)b).MkBounded1, bhi ->
+                                      bhi)
   : error("non-exhaustive match"))
   ;
 
-public interface pair {}
+public interface pair {
 public static class MkPair implements pair {
   final Object MkPair0;
   final Object MkPair1;
@@ -127,30 +141,32 @@ public static class MkPair implements pair {
     
   }
 
+}
+
 static Function<nat, Function<nat, nat>> add;
 static {
 add = m -> n ->
-((m instanceof O) ? n
-: (m instanceof S) ? let(((S)m).S0, m$ ->
-                     ((nat) new S(add.apply(m$).apply(n))))
+((m instanceof nat.O) ? n
+: (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                         ((nat) new nat.S(add.apply(m$).apply(n))))
 : error("non-exhaustive match"))
 ;
 }
 
 static Function<nat, Function<nat, pair>> mk_nat_pair = x -> y -> ((pair)
-  new MkPair(x, y))
+  new pair.MkPair(x, y))
   ;
 
 static Function<pair, nat> pair_sum = p ->
-  add.apply(((p instanceof MkPair) ? let(((MkPair)p).MkPair0, pfst ->
-                                     ((nat) pfst))
-     : error("non-exhaustive match"))).apply(((p instanceof MkPair) ? 
-                                                let(((MkPair)p).MkPair1, psnd ->
+  add.apply(((p instanceof pair.MkPair) ? let(((pair.MkPair)p).MkPair0, pfst ->
+                                          ((nat) pfst))
+     : error("non-exhaustive match"))).apply(((p instanceof pair.MkPair) ? 
+                                                let(((pair.MkPair)p).MkPair1, psnd ->
                                                 ((nat) psnd))
                                       : error("non-exhaustive match")))
   ;
 
-public interface ppoint {}
+public interface ppoint {
 public static class MkPPoint implements ppoint {
   final nat MkPPoint0;
   final nat MkPPoint1;
@@ -162,17 +178,21 @@ public static class MkPPoint implements ppoint {
     
   }
 
+}
+
 static Function<nat, Function<nat, ppoint>> mk_ppoint = x -> y -> ((ppoint)
-  new MkPPoint(x, y))
+  new ppoint.MkPPoint(x, y))
   ;
 
 static Function<ppoint, nat> get_ppx = p ->
-  ((p instanceof MkPPoint) ? let(((MkPPoint)p).MkPPoint0, ppx -> ppx)
+  ((p instanceof ppoint.MkPPoint) ? let(((ppoint.MkPPoint)p).MkPPoint0, ppx ->
+                                    ppx)
   : error("non-exhaustive match"))
   ;
 
 static Function<ppoint, nat> get_ppy = p ->
-  ((p instanceof MkPPoint) ? let(((MkPPoint)p).MkPPoint1, ppy -> ppy)
+  ((p instanceof ppoint.MkPPoint) ? let(((ppoint.MkPPoint)p).MkPPoint1, ppy ->
+                                    ppy)
   : error("non-exhaustive match"))
   ;
 

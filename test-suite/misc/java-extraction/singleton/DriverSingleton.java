@@ -1,17 +1,17 @@
 public class DriverSingleton {
   static java_singleton.nat intToNat(int n) {
-    java_singleton.nat r = new java_singleton.O();
+    java_singleton.nat r = new java_singleton.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_singleton.S(r);
+      r = new java_singleton.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_singleton.nat n) {
     int i = 0;
-    while (n instanceof java_singleton.S) {
+    while (n instanceof java_singleton.nat.S) {
       i++;
-      n = ((java_singleton.S) n).S0;
+      n = ((java_singleton.nat.S) n).S0;
     }
     return i;
   }
@@ -45,16 +45,16 @@ public class DriverSingleton {
 
     // Hold (Wrap 6) carries a nat directly.
     java_singleton.holder h = java_singleton.hold.apply(intToNat(6));
-    check("hold field", 6, ((java_singleton.Hold) h).Hold0);
+    check("hold field", 6, ((java_singleton.holder.Hold) h).Hold0);
     check("held", 6, java_singleton.held.apply(h));
-    check("held empty", 0, java_singleton.held.apply(new java_singleton.Empty()));
+    check("held empty", 0, java_singleton.held.apply(new java_singleton.holder.Empty()));
 
     // wrapped_list 7 = [7]
     java_singleton.list l = java_singleton.wrapped_list.apply(intToNat(7));
-    check("wrapped_list head", 7, (java_singleton.nat) ((java_singleton.Cons) l).Cons0);
+    check("wrapped_list head", 7, (java_singleton.nat) ((java_singleton.list.Cons) l).Cons0);
     check("first_unwrapped", 7, java_singleton.first_unwrapped.apply(l));
     check("first_unwrapped nil", 0,
-        java_singleton.first_unwrapped.apply(new java_singleton.Nil()));
+        java_singleton.first_unwrapped.apply(new java_singleton.list.Nil()));
 
     // add_wrapped (Wrap 3) 4 = 7
     check("add_wrapped", 7,
