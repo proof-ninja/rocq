@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface color {}
+public interface color {
 public static class Red implements color {
   
   Red() {
@@ -35,10 +35,12 @@ public static class Blue implements color {
     
   }
 
+}
+
 static Function<color, color> rotate = c ->
-  ((c instanceof Red) ? ((color) new Green())
-  : (c instanceof Green) ? ((color) new Blue())
-  : (c instanceof Blue) ? ((color) new Red())
+  ((c instanceof color.Red) ? ((color) new color.Green())
+  : (c instanceof color.Green) ? ((color) new color.Blue())
+  : (c instanceof color.Blue) ? ((color) new color.Red())
   : error("non-exhaustive match"))
   ;
 

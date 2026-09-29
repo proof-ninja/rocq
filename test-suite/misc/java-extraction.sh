@@ -12,3 +12,4 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" mldummy
 "$self_dir/java-extraction/run-case.sh" local_fix
 "$self_dir/java-extraction/run-case.sh" fix0
+"$self_dir/java-extraction/run-case.sh" case_clash
