@@ -341,23 +341,35 @@ let rec arrows_upto t k =
     | Tmeta { contents = Some t; _ } -> arrows_upto t k
     | _ -> 0
 
-(* Expected types of the first [k] arguments of a function of type [t];
-   [None] entries where the arrow chain runs out. *)
+(* Expected types of the first [k] arguments of a function of type [t].
+   Past the arrow chain the head is a type variable instantiated to a
+   function, whose Java parameters are [Object] (see [apply_cast]): those
+   entries are [Some Tunknown], not [None], so that a lambda placed there
+   still learns that its position is [Object] (see the [MLlam] case). *)
 let rec arg_types t k =
   if Int.equal k 0 then []
   else match t with
     | Tarr (a, b) -> Some a :: arg_types b (k - 1)
     | Tmeta { contents = Some t; _ } -> arg_types t k
-    | _ -> List.init k (fun _ -> None)
+    | _ -> List.init k (fun _ -> Some Tunknown)
 
 (* Peels [k] lambda-argument types off [t]; returns them outermost first,
-   together with the type of the body. *)
+   together with the type of the body. When [t] runs out of arrows before
+   [k] does, the remaining parameters are still known to be Object-erased
+   (that is all a value of type [t] can be once its arrow chain is spent),
+   so they get [Some Tunknown] rather than [None]: unlike a true unknown,
+   this lets [pp_cast] downstream cast a parameter back to a concrete type
+   at its use site. The body's own type is left [None]. *)
 let rec peel_lams t k =
   if Int.equal k 0 then [], Some t
   else match t with
     | Tarr (a, b) -> let ps, r = peel_lams b (k - 1) in Some a :: ps, r
     | Tmeta { contents = Some t; _ } -> peel_lams t k
-    | _ -> List.init k (fun _ -> None), None
+    | _ -> List.init k (fun _ -> Some Tunknown), None
+
+(* [p1 -> ... -> pn -> r], with [Object] for an unknown parameter. *)
+let fn_type_of param_tys r =
+  List.fold_right (fun p acc -> Tarr (Option.default Tunknown p, acc)) param_tys r
 
 (* Bottom-up type of an expression, where recoverable. [tenv] parallels the
    de Bruijn context of [env]: its head is the type of [MLrel 1]. *)
@@ -397,6 +409,41 @@ let pp_cast table ~expected ~actual pp =
               if erases_to_object aty then mt () else str "(Object) "
             in
             paren (paren (pp_type table ety) ++ str " " ++ bridge ++ pp)
+
+(*s Lambdas at [Object].
+
+    A Java lambda has no type of its own: it is typed by the target type of
+    its position, and a position whose static type is [Object] offers none,
+    so javac rejects a bare lambda there ("Object is not a functional
+    interface"). Erasure produces such positions wherever a type variable
+    stands: the parameter of a polymorphic function, a slot past the arrows
+    of an over-applied polymorphic head, the field of a polymorphic
+    constructor, and the value of [let] (whose type parameter javac infers
+    from the value, which a lambda cannot drive). A cast to the function
+    type supplies the target: [(Function<..., ...>) (x -> ...)].
+
+    [expected] is [Object]-erased (or runs out of arrows) exactly at the
+    first two kinds of position, so the [MLlam] case handles them itself.
+    [let] passes [Some Tunknown] for a lambda value on purpose. Constructor
+    fields are the exception: there [expected] is the instantiated field
+    type (needed to type the body), while the field's static type is the
+    erased declared one, so [MLcons] decides on the declared type. *)
+
+let rec strip_magic = function
+  | MLmagic a -> strip_magic a
+  | a -> a
+
+let is_bare_lambda a = match strip_magic a with
+  | MLlam _ -> true
+  | _ -> false
+
+(* Counted the way the [MLlam] case does ([collect_lams] stops at an inner
+   [MLmagic]), so a cast built from this arity agrees with the printer. *)
+let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
+
+(* Printed erased, as [pp_cast] does: the type may still hold metas. *)
+let pp_lambda_target table fn_ty lam =
+  paren (paren (pp_type table (erase_type fn_ty)) ++ paren lam)
 
 let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in
@@ -461,9 +508,26 @@ let rec pp_expr table env tenv expected args =
           | Some t when List.is_empty args -> peel_lams t n
           | _ -> List.init n (fun _ -> None), None
         in
+        (* [expected] running out of arrows means the lambda sits at
+           [Object] (see "Lambdas at [Object]" above): cast it to the
+           function type [peel_lams] assumed, with [Object] as the result.
+           The body is then printed at [Object] too, so a nested lambda
+           behind an [MLmagic] (where [collect_lams] stopped) gets its own
+           cast the same way. [pp_cast] adds the cast to [expected] when
+           that is a different known type (a branch whose ML type disagrees
+           with the match's). *)
+        let needs_target = match expected with
+          | Some t -> List.is_empty args && arrows_upto t n < n
+          | None -> false
+        in
+        let body_ty = if needs_target then Some Tunknown else body_ty in
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
         let tenv' = List.rev param_tys @ tenv in
-        apply (pp_abst (pp_expr table env' tenv' body_ty [] a') (List.rev fl))
+        let lam = pp_abst (pp_expr table env' tenv' body_ty [] a') (List.rev fl) in
+        if needs_target then
+          let fn_ty = fn_type_of param_tys Tunknown in
+          pp_cast table ~expected ~actual:(Some fn_ty) (pp_lambda_target table fn_ty lam)
+        else apply lam
     | MLletin (id,a1,a2) ->
         (* If [a1] is already an application of a fix (a computed value,
            not the bare recursive function) and the let-bound variable is
@@ -473,10 +537,18 @@ let rec pp_expr table env tenv expected args =
         if is_fix_head a1 then pp_expr table env tenv expected args (ast_subst a1 a2)
         else
           let body_expected = if List.is_empty args then expected else None in
-          let a1_ty = type_of_expr tenv a1 in
+          (* A lambda value gets an [Object] target (so the [MLlam] case
+             casts it) and the bound variable the function type of that
+             cast, so that its applications cast their results. *)
+          let a1_expected, a1_ty =
+            if is_bare_lambda a1 then
+              let params = List.init (lambda_arity a1) (fun _ -> None) in
+              Some Tunknown, Some (fn_type_of params Tunknown)
+            else None, type_of_expr tenv a1
+          in
           let i,env' = push_vars [id_of_mlid id] env in
           let pp_id = pr_id (List.hd i)
-          and pp_a1 = pp_expr table env tenv None [] a1
+          and pp_a1 = pp_expr table env tenv a1_expected [] a1
           and pp_a2 = pp_expr table env' (a1_ty :: tenv) body_expected [] a2 in
           hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
     | MLglob r ->
@@ -486,15 +558,28 @@ let rec pp_expr table env tenv expected args =
         (* The annotation's type arguments may mention aliases (e.g.
            [list natop]); they flow into field types via [type_subst_list]. *)
         let typ = expand_aliases typ in
+        (* Each argument is printed at its instantiated field type; the
+           flag records whether the field's declared type is a type
+           variable, i.e. whether the field itself is [Object]. *)
         let arg_tys = match constructor_arg_types r, typ with
           | Some tys, Tglob (_, targs) when Int.equal (List.length tys) (List.length args') ->
-              List.map (fun ty -> Some (type_subst_list targs ty)) tys
-          | _ -> List.map (fun _ -> None) args'
+              List.map (fun ty -> Some (type_subst_list targs ty), erases_to_object ty) tys
+          | _ -> List.map (fun _ -> None, false) args'
+        in
+        (* A bare lambda in an [Object] field needs the instantiated
+           function type as its target (see "Lambdas at [Object]"). When
+           that type has too few arrows itself, the [MLlam] case has already
+           cast the lambda. *)
+        let pp_arg (a, (ety, field_is_object)) =
+          let pp = pp_expr table env tenv ety [] a in
+          match ety with
+          | Some ty when field_is_object && is_bare_lambda a
+                         && arrows_upto ty (lambda_arity a) >= lambda_arity a ->
+              pp_lambda_target table ty pp
+          | _ -> pp
         in
         let cons = str "new " ++ pp_global table Cons r ++
-          paren (prlist_with_sep comma
-                   (fun (a, ety) -> pp_expr table env tenv ety [] a)
-                   (List.combine args' arg_tys)) in
+          paren (prlist_with_sep comma pp_arg (List.combine args' arg_tys)) in
         let ind = get_ind r in
         let cons =
           if is_custom ind || is_inline_custom ind then cons
