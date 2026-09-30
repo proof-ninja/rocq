@@ -1,0 +1,139 @@
+import java.util.function.Function;
+
+class java_singleton {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface list {}
+public static class Nil implements list {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements list {
+  final Object Cons0;
+  final list Cons1;
+  
+  Cons(Object Cons0, list Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+static Function<nat, nat> wrap = n -> n
+  ;
+
+static Function<nat, nat> unwrap = w -> w
+  ;
+
+static Function<Function<Object, Object>, Function<Object, Object>>
+  unbox = b -> b
+  ;
+
+static Function<nat, nat> succ = x -> ((nat) new S(x))
+  ;
+
+static Function<nat, nat> apply_box_lam = n ->
+  ((nat) unbox.apply(x -> ((nat) new S(((nat) x)))
+              ).apply(n))
+  ;
+
+static Function<nat, nat> apply_box_glob = n ->
+  ((nat) unbox.apply(((Function<Object, Object>) (Object) succ)).apply(n))
+  ;
+
+static Function<Object, Object> unid = x -> x
+  ;
+
+static Function<nat, nat> use_id = n -> ((nat) new S(((nat) unid.apply(n))))
+  ;
+
+static Function<nat, nat> use_id_fun = n ->
+  ((nat) ((Function<Object, Object>) unid.apply(((Function<Object, Object>)(x ->
+                                         ((nat) new S(((nat) x)))
+                                         )))).apply(n))
+  ;
+
+static Function<nat, nat> rewrap = n -> n
+  ;
+
+static Function<nat, nat> unrewrap = r -> r
+  ;
+
+public interface holder {}
+public static class Hold implements holder {
+  final nat Hold0;
+  
+  Hold(nat Hold0) {
+    this.Hold0 = Hold0;
+    }
+    
+  }
+
+public static class Empty implements holder {
+  
+  Empty() {
+    }
+    
+  }
+
+static Function<nat, holder> hold = n -> ((holder) new Hold(n))
+  ;
+
+static Function<holder, nat> held = h ->
+  ((h instanceof Hold) ? let(((Hold)h).Hold0, w -> unwrap.apply(w))
+  : (h instanceof Empty) ? ((nat) new O())
+  : error("non-exhaustive match"))
+  ;
+
+static Function<nat, list> wrapped_list = n -> ((list) new Cons(n, ((list)
+  new Nil())))
+  ;
+
+static Function<list, nat> first_unwrapped = l ->
+  ((l instanceof Nil) ? ((nat) new O())
+  : (l instanceof Cons) ? let(((nat) ((Cons)l).Cons0), w -> unwrap.apply(w))
+  : error("non-exhaustive match"))
+  ;
+
+static Function<nat, Function<nat, nat>>
+add_wrapped;
+static {
+add_wrapped = w -> n ->
+((n instanceof O) ? unwrap.apply(w)
+: (n instanceof S) ? let(((S)n).S0, m ->
+                     ((nat) new S(add_wrapped.apply(w).apply(m))))
+: error("non-exhaustive match"))
+;
+}
+
+}
