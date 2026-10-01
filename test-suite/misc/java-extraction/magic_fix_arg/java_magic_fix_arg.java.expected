@@ -1,0 +1,72 @@
+import java.util.function.Function;
+
+class java_magic_fix_arg {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+public interface bool {}
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+static Function<bool, Object> dep = b ->
+  ((b instanceof True) ? ((nat) new S(((nat) new O())))
+  : (b instanceof False) ? ((bool) new False())
+  : error("non-exhaustive match"))
+  ;
+
+static Function<nat, nat> combine = n -> fix2(add -> m -> n0 ->
+  (let(m, scrutinee ->
+   (scrutinee instanceof O) ? n0
+   : (scrutinee instanceof S) ? let(((S)scrutinee).S0, m$ ->
+                                ((nat) new S(add.apply(m$).apply(n0))))
+   : error("non-exhaustive match")))
+  , dep.apply(((bool) new True())), n)
+  ;
+
+static nat result = combine.apply(((nat) new S(((nat) new O()))));
+
+}
