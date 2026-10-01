@@ -32,3 +32,4 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" magic_let
 "$self_dir/java-extraction/run-case.sh" magic_fix_arg
 "$self_dir/java-extraction/run-case.sh" mono_branch_lam
+"$self_dir/java-extraction/run-case.sh" singleton

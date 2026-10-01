@@ -231,11 +231,13 @@ let pp_fix_helper k =
 let const_types = ref Cmap_env.empty
 let ind_sigs = ref Mindmap_env.empty
 let type_aliases = ref Cmap_env.empty
+let ind_aliases = ref Mindmap_env.empty
 
 let reset_type_info () =
   const_types := Cmap_env.empty;
   ind_sigs := Mindmap_env.empty;
-  type_aliases := Cmap_env.empty
+  type_aliases := Cmap_env.empty;
+  ind_aliases := Mindmap_env.empty
 
 let record_const_type r ty = match r.glob with
   | GlobRef.ConstRef c -> const_types := Cmap_env.add c ty !const_types
@@ -245,26 +247,38 @@ let lookup_const_type r = match r.glob with
   | GlobRef.ConstRef c -> Cmap_env.find_opt c !const_types
   | _ -> None
 
-(*s Type synonyms ([Dtype]). Java has no type-alias feature, and wrapping
-    the body in a class would change the runtime representation, so alias
+(*s Type synonyms. Java has no type-alias feature, and wrapping the body
+    in a class would change the runtime representation, so alias
     declarations are erased and every reference is expanded to the body.
-    Bodies are recorded as [pp_decl] meets the declarations; declarations
-    come in dependency order, so a reference always finds its alias. *)
+    Two kinds of declaration are synonyms: a [Dtype] ([Definition t :=
+    ...] at the type level), keyed by its constant, and a [Singleton]
+    inductive (one constructor with one informative field, keyed by the
+    inductive, the only type of its block), whose constructor and match
+    the extraction core already erases at the term level, so that its
+    values are the field's values. Bodies are recorded as [pp_decl] meets
+    the declarations; declarations come in dependency order, so a
+    reference always finds its alias. Both maps compare canonical names,
+    like [const_types] and [ind_sigs], so a reference through a module
+    alias finds the declaration too. *)
 
 let record_type_alias r body = match r.glob with
   | GlobRef.ConstRef c -> type_aliases := Cmap_env.add c body !type_aliases
+  | GlobRef.IndRef (kn, 0) -> ind_aliases := Mindmap_env.add kn body !ind_aliases
   | _ -> ()
 
 let lookup_type_alias r = match r.glob with
   | GlobRef.ConstRef c -> Cmap_env.find_opt c !type_aliases
+  | GlobRef.IndRef (kn, 0) -> Mindmap_env.find_opt kn !ind_aliases
   | _ -> None
 
 (* Replaces every alias reference by its recorded body. The recursion
-   terminates because a [Definition] cannot be recursive: an alias body only
-   mentions aliases declared strictly earlier. Deliberately independent of
-   [Mlutil.type_expand], which [Unset Extraction TypeExpand] turns into the
-   identity; in Java the expansion is a correctness requirement, not a
-   readability optimization, so it must not be switched off. *)
+   terminates because an alias body only mentions aliases declared
+   strictly earlier: a [Definition] cannot be recursive, and an inductive
+   is only classified [Singleton] when its field does not mention the
+   inductive itself. Deliberately independent of [Mlutil.type_expand],
+   which [Unset Extraction TypeExpand] turns into the identity; in Java
+   the expansion is a correctness requirement, not a readability
+   optimization, so it must not be switched off. *)
 let rec expand_aliases t = match t with
   | Tglob (r, args) ->
       (match lookup_type_alias r with
@@ -765,20 +779,17 @@ let pp_java_constructor classname ty_name_list =
     ++ str "}" ++ fnl()
 
 
-(* class with one constructor *)
-(* Known broken: the extraction core unwraps singleton constructors at the
-   term level, so this bare wrapper class never matches its use sites; fixing
-   it needs type-reference expansion, not a declaration change. Until then,
-   [Set Extraction KeepSingleton] classifies one-field records as [Record]
-   and routes them through the working [pp_ind] scheme. *)
-let pp_singleton table packet =
-  let name = pp_global_name table Type packet.ip_typename_ref in
-  let fieldname = pr_id packet.ip_consnames.(0) in
-  let ty = pp_type table (List.hd packet.ip_types.(0)) in
-  str "public static class " ++ name ++ str " {" ++ fnl() ++
-    pp_instance_var ty fieldname ++ fnl() ++
-    pp_java_constructor name [(ty, fieldname)] ++ fnl()
-    ++ str "}" ++ fnl2()
+(* A [Singleton] inductive is a type synonym of its only field (the
+   OCaml backend prints it as [type t = <field>]): the extraction core
+   unwraps its constructor and its match at the term level, so a value of
+   the type is the field's value, and a wrapper class would never match
+   the use sites. Like a [Dtype], it is recorded and prints nothing; the
+   field type was expanded by [expand_ind_aliases]. With [Set Extraction
+   KeepSingleton] such an inductive is classified [Record] and gets a real
+   class through [pp_ind]. *)
+let pp_singleton packet =
+  record_type_alias packet.ip_typename_ref (List.hd packet.ip_types.(0));
+  mt ()
 
 (* one [Inductive a := ... .] *)
 let pp_one_ind table name cnames ctyps =
@@ -826,7 +837,7 @@ let pp_ind table ind =
 
 let pp_mind table i =
   match i.ind_kind with
-    | Singleton -> (* Record or Class with one element *) pp_singleton table i.ind_packets.(0)
+    | Singleton -> pp_singleton i.ind_packets.(0)
     | Coinductive -> paren (str "extraction of coinductive definition is not implemented")
     (* A record's construction and match sites print exactly like an ordinary
        inductive's ([new Ctor(...)], [instanceof Ctor], positional [CtorN]
