@@ -1,0 +1,75 @@
+import java.util.function.Function;
+
+class java_let_runout {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+static Function<Object, Object> idf = a -> a
+  ;
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = m -> n ->
+((m instanceof O) ? n
+: (m instanceof S) ? let(((S)m).S0, m$ ->
+                     ((nat) new S(add.apply(m$).apply(n))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  let_runout = f -> n ->
+  let(((Function<Object, Object>) idf.apply(f)).apply(n), m ->
+  add.apply(((nat) m)).apply(((nat) m)))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  let_runout_cons = f -> n ->
+  let(((Function<Object, Object>) idf.apply(f)).apply(n), m ->
+  ((nat) new S(((nat) m))))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  let_runout_poly = f -> n ->
+  let(((Function<Object, Object>) idf.apply(f)).apply(n), m ->
+  ((nat) idf.apply(m)))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  let_runout_fun = f -> n ->
+  let(((Function<Object, Object>) idf.apply(idf)).apply(f), g ->
+  ((nat) new S(((nat) ((Function<Object, Object>) g).apply(n)))))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>>
+  arg_runout = f -> n -> ((nat)
+  new S(((nat) ((Function<Object, Object>) idf.apply(f)).apply(n))))
+  ;
+
+}

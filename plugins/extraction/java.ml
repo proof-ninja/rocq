@@ -393,7 +393,16 @@ let rec type_of_expr tenv = function
   | MLcons (typ, _, _) -> Some (expand_aliases typ)
   | MLapp (f, args) ->
       (match type_of_expr tenv f with
-       | Some ft -> strip_arrows ft (List.length args)
+       | Some ft ->
+           (match strip_arrows ft (List.length args) with
+            | Some t -> Some t
+            (* The head's type runs out of arrows before the arguments do:
+               [apply_cast] then bridges the remaining [.apply] calls and
+               prints the result at [Object], so the value's static type is
+               known to be [Object] (as for [peel_lams]), not unknown. A
+               [let] binding this value needs that to cast the bound
+               variable at its use sites. *)
+            | None -> Some Tunknown)
        | None -> None)
   | MLletin (_, a1, a2) -> type_of_expr (type_of_expr tenv a1 :: tenv) a2
   (* Invisible in the Java output: [pp_expr]'s own [MLmagic] case forwards
