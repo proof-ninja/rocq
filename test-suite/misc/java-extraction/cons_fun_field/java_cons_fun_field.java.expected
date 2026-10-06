@@ -1,0 +1,107 @@
+import java.util.function.Function;
+
+class java_cons_fun_field {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = m -> n ->
+((m instanceof O) ? n
+: (m instanceof S) ? let(((S)m).S0, m$ ->
+                     ((nat) new S(add.apply(m$).apply(n))))
+: error("non-exhaustive match"))
+;
+}
+
+public interface box2 {}
+public static class Box2 implements box2 {
+  final Function<Object, Object> Box20;
+  final nat Box21;
+  
+  Box2(Function<Object, Object> Box20, nat Box21) {
+    this.Box20 = Box20;
+    this.Box21 = Box21;
+    }
+    
+  }
+
+static Function<box2, Function<Object, Object>> unbox2 = b ->
+  ((b instanceof Box2) ? let(((Box2)b).Box20, f -> f)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<nat, nat> succ = x -> ((nat) new S(x))
+  ;
+
+static nat
+  p_glob = ((nat) unbox2.apply(((box2)
+                        new Box2(((Function<Object, Object>) (Object) succ), ((nat)
+                        new O())))).apply(((nat) new O())));
+
+static nat
+  p_lam = ((nat) unbox2.apply(((box2)
+                       new Box2(((Function<Object, Object>) (Object) ((
+                       Function<nat, nat>)(x -> ((nat) new S(x))
+                       ))), ((nat) new O())))).apply(((nat) new O())));
+
+static Function<Function<nat, nat>, box2> mk_var = f -> ((box2)
+  new Box2(((Function<Object, Object>) (Object) f), ((nat) new O())))
+  ;
+
+static Function<nat, box2> mk_app = n -> ((box2)
+  new Box2(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
+  new O())))
+  ;
+
+static nat
+  p_var = ((nat) unbox2.apply(mk_var.apply(succ)).apply(((nat) new O())));
+
+static nat
+  p_app = ((nat) unbox2.apply(mk_app.apply(((nat) new S(((nat) new O())))))
+                       .apply(((nat) new S(((nat) new O())))));
+
+static Function<Function<Object, Object>, box2> mk_poly = f -> ((box2)
+  new Box2(f, ((nat) new O())))
+  ;
+
+static nat
+  p_poly = ((nat) unbox2.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
+                        .apply(((nat) new O())));
+
+static nat
+  p_fun = ((nat) ((Function<Object, Object>) unbox2.apply(((box2)
+                                                   new Box2(((Function<Object, Object>) (Object) ((
+                                                   Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
+                                                   f.apply(f.apply(x))
+                                                   ))), ((nat)
+                                                   new O())))).apply(succ))
+  .apply(((nat) new O())));
+
+}
