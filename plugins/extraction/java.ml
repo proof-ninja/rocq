@@ -581,25 +581,35 @@ let rec pp_expr table env tenv expected args =
         (* The annotation's type arguments may mention aliases (e.g.
            [list natop]); they flow into field types via [type_subst_list]. *)
         let typ = expand_aliases typ in
-        (* Each argument is printed at its instantiated field type; the
-           flag records whether the field's declared type is a type
-           variable, i.e. whether the field itself is [Object]. *)
+        (* Each argument is printed at its instantiated field type, then
+           bridged to the declared field type (over the inductive's type
+           variables: the static Java type of the field) where the two
+           erase differently, e.g. a [Function<nat, nat>] value for an
+           [A -> A] field of type [Function<Object, Object>]. This mirrors
+           the cast on the field access in [pp_one_pat]. For an [Object]
+           field the bridge is a plain upcast and [pp_cast] prints
+           nothing. *)
         let arg_tys = match constructor_arg_types r, typ with
           | Some tys, Tglob (_, targs) when Int.equal (List.length tys) (List.length args') ->
-              List.map (fun ty -> Some (type_subst_list targs ty), erases_to_object ty) tys
-          | _ -> List.map (fun _ -> None, false) args'
+              List.map (fun ty -> Some (type_subst_list targs ty), Some ty) tys
+          | _ -> List.map (fun _ -> None, None) args'
         in
-        (* A bare lambda in an [Object] field needs the instantiated
-           function type as its target (see "Lambdas at [Object]"). When
-           that type has too few arrows itself, the [MLlam] case has already
-           cast the lambda. *)
-        let pp_arg (a, (ety, field_is_object)) =
+        (* A bare lambda whose field is not already its exact type needs
+           the instantiated function type as its target (see "Lambdas at
+           [Object]"): neither [Object] nor the [(Object)] bridge offers
+           one. When that type has too few arrows itself, the [MLlam] case
+           has already cast the lambda. *)
+        let pp_arg (a, (ety, declared)) =
           let pp = pp_expr table env tenv ety [] a in
-          match ety with
-          | Some ty when field_is_object && is_bare_lambda a
-                         && arrows_upto ty (lambda_arity a) >= lambda_arity a ->
-              pp_lambda_target table ty pp
-          | _ -> pp
+          let pp = match ety, declared with
+            | Some ty, Some dty
+              when is_bare_lambda a
+                   && not (erased_type_eq (erase_type dty) (erase_type ty))
+                   && arrows_upto ty (lambda_arity a) >= lambda_arity a ->
+                pp_lambda_target table ty pp
+            | _ -> pp
+          in
+          pp_cast table ~expected:declared ~actual:ety pp
         in
         let cons = str "new " ++ pp_global table Cons r ++
           paren (prlist_with_sep comma pp_arg (List.combine args' arg_tys)) in
