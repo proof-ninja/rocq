@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface ascii {}
+public interface ascii {
 public static class Dot implements ascii {
   
   Dot() {
@@ -28,7 +28,9 @@ public static class Dash implements ascii {
     
   }
 
-public interface string {}
+}
+
+public interface string {
 public static class EmptyString implements string {
   
   EmptyString() {
@@ -47,11 +49,13 @@ public static class String0 implements string {
     
   }
 
+}
+
 static Function<string, string> dot_prefix = s -> ((string)
-  new String0(((ascii) new Dot()), s))
+  new string.String0(((ascii) new ascii.Dot()), s))
   ;
 
-public interface lang {}
+public interface lang {
 public static class Function0 implements lang {
   
   Function0() {
@@ -80,11 +84,14 @@ public static class Object0 implements lang {
     
   }
 
+}
+
 static Function<lang, lang> rotate = o ->
-  ((o instanceof Function0) ? ((lang) new RuntimeException0())
-  : (o instanceof RuntimeException0) ? ((lang) new SuppressWarnings0())
-  : (o instanceof SuppressWarnings0) ? ((lang) new Object0())
-  : (o instanceof Object0) ? ((lang) new Function0())
+  ((o instanceof lang.Function0) ? ((lang) new lang.RuntimeException0())
+  : (o instanceof lang.RuntimeException0) ? ((lang)
+      new lang.SuppressWarnings0())
+  : (o instanceof lang.SuppressWarnings0) ? ((lang) new lang.Object0())
+  : (o instanceof lang.Object0) ? ((lang) new lang.Function0())
   : error("non-exhaustive match"))
   ;
 

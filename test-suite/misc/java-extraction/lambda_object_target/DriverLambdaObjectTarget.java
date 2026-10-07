@@ -7,8 +7,8 @@ public class DriverLambdaObjectTarget {
 
   static int toInt(java_lambda_object_target.nat n) {
     int i = 0;
-    while (n instanceof java_lambda_object_target.S) {
-      n = ((java_lambda_object_target.S) n).S0;
+    while (n instanceof java_lambda_object_target.nat.S) {
+      n = ((java_lambda_object_target.nat.S) n).S0;
       i++;
     }
     return i;
@@ -16,7 +16,7 @@ public class DriverLambdaObjectTarget {
 
   public static void main(String[] args) {
     java_lambda_object_target.nat one =
-        new java_lambda_object_target.S(new java_lambda_object_target.O());
+        new java_lambda_object_target.nat.S(new java_lambda_object_target.nat.O());
 
     // use_pair_fun = fst (pair (fun x => S x) O) O = S O
     check("constructor field", toInt(java_lambda_object_target.use_pair_fun) == 1);

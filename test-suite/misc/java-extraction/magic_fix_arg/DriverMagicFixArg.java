@@ -1,9 +1,9 @@
 public class DriverMagicFixArg {
   static int natToInt(java_magic_fix_arg.nat n) {
     int i = 0;
-    while (n instanceof java_magic_fix_arg.S) {
+    while (n instanceof java_magic_fix_arg.nat.S) {
       i++;
-      n = ((java_magic_fix_arg.S) n).S0;
+      n = ((java_magic_fix_arg.nat.S) n).S0;
     }
     return i;
   }

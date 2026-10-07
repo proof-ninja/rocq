@@ -160,8 +160,18 @@ let get_ind r = let open GlobRef in match r.glob with
   | ConstructRef (ind,_) -> { glob = IndRef ind; inst = r.inst }
   | _ -> assert false
 
+(* A constructor class is nested in the class of its inductive type, so outside
+   of it the constructor is referred to as [<type>.<constructor>]. Only
+   [Extract Inductive] makes a constructor custom, and it makes its inductive
+   type custom too. *)
+let pp_cons_class table r =
+  let ind = get_ind r in
+  if is_custom ind then pp_global table Cons r
+  else pp_global table Type ind ++ str "." ++ pp_global table Cons r
+
+(* The class of a constructor pattern, and the base name of its fields *)
 let pp_gen_pat table = function
-  | Pusual r -> pp_global_name table Cons r
+  | Pusual r -> pp_cons_class table r, pp_global_name table Cons r
   | Pcons _ -> user_err Pp.(str "Cannot handle deep patterns in Java yet.")
   | Ptuple _ -> user_err Pp.(str "Cannot handle tuple patterns in Java yet.")
   | Pwild | Prel _ -> assert false (* catch-all: handled in pp_pat_branches *)
@@ -601,11 +611,11 @@ let rec pp_expr table env tenv expected args =
               pp_lambda_target table ty pp
           | _ -> pp
         in
-        let cons = str "new " ++ pp_global table Cons r ++
+        let cons = str "new " ++ pp_cons_class table r ++
           paren (prlist_with_sep comma pp_arg (List.combine args' arg_tys)) in
         let ind = get_ind r in
         let cons =
-          if is_custom ind || is_inline_custom ind then cons
+          if is_custom ind then cons
           else paren (paren (pp_global table Type ind) ++ spc () ++ cons)
         in
         pp_cast table ~expected ~actual:(Some typ) cons
@@ -668,7 +678,7 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
   let n = List.length ids in
   let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
   let ids_field = List.rev ids' in
-  let constr = pp_gen_pat table p in
+  let constr, field_base = pp_gen_pat table p in
   (* Declared field types (over the inductive's type variables — the static
      Java type of the field access) and their instantiation at the
      scrutinee's type arguments. Casting the field access in the [let]
@@ -690,7 +700,7 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
   in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
   let body = pp_expr table env' tenv' expected [] t in
-  let cast_exp = paren (paren (str constr) ++ exp) in
+  let cast_exp = paren (paren constr ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
       let id = List.nth ids_field j in
@@ -699,7 +709,7 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
          identifier [_] (and collide if several fields are unused). *)
       if Id.equal id dummy_name then acc
       else
-        let field = str (constr ^ string_of_int j) in
+        let field = str (field_base ^ string_of_int j) in
         let var   = pr_id id in
         let declared = match sig_tys with
           | Some tys -> Some (List.nth tys j)
@@ -713,7 +723,7 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
     (List.init n (fun j -> j))
     body
   in
-  str constr, wrapped
+  constr, wrapped
 
 (* A top-level [Pwild] or [Prel] matches unconditionally, so it cannot (and
    need not) be tested with [instanceof]: its body is the default of the
@@ -800,7 +810,9 @@ let pp_singleton packet =
   record_type_alias packet.ip_typename_ref (List.hd packet.ip_types.(0));
   mt ()
 
-(* one [Inductive a := ... .] *)
+(* one [Inductive a := ... .]: an interface enclosing one class per
+   constructor. Nesting keeps the constructor classes from clashing with the
+   other classes of the extraction, see [Common.java_class_scope]. *)
 let pp_one_ind table name cnames ctyps =
   let pp_constructor i typs =
     hv 2 (str "public static class " ++ cnames.(i) ++ str " implements " ++ name ++ str " {" ++ fnl() ++
@@ -810,8 +822,9 @@ let pp_one_ind table name cnames ctyps =
         hv 2 (pp_java_constructor cnames.(i) (List.mapi (fun j t -> (pp_type table t, cnames.(i) ++ str (string_of_int j))) typs)) ++ fnl() ++
     str "}") ++ fnl2()
   in
-  name ++ str " {}" ++ fnl()
+  name ++ str " {" ++ fnl()
   ++ v 0 (prvecti pp_constructor ctyps)
+  ++ str "}" ++ fnl2()
 
 (* [Inductive] may be mutual recursive. A block that only re-exports
    another one under a module alias never reaches this printer: see
@@ -928,15 +941,17 @@ let pp_struct table id =
   let pp_sel (mp,sel) = State.with_visibility table mp [] begin fun table ->
     prlist_strict (fun e -> pp_structure_elem table e) sel
   end in
+  let top_class = java_class_name id in
   fun structure ->
     reset_fix_arities ();
     reset_type_info ();
+    State.set_java_top_class table top_class;
     let body = prlist_strict pp_sel structure in
     let arities =
       if Int.Set.mem 0 !fix_arities then Int.Set.add 1 !fix_arities
       else !fix_arities
     in
-    str "class " ++ str (java_class_name id) ++ str " {" ++ fnl() ++ fnl() ++
+    str "class " ++ str top_class ++ str " {" ++ fnl() ++ fnl() ++
     str "static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }" ++
     fnl() ++ fnl() ++
     str "static <A> A error(String msg) { throw new RuntimeException(msg); }" ++

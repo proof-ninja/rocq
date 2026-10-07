@@ -28,6 +28,7 @@ val warning_axioms : t -> unit
 val warning_opaques : t -> bool -> unit
 val warning_ambiguous_name : ?loc:Loc.t -> qualid * ModPath.t * GlobRef.t -> unit
 val warning_id : string -> unit
+val warning_java_class_clash : global -> string -> global option -> string -> unit
 val error_axiom_scheme : ?loc:Loc.t -> global -> int -> 'a
 val error_constant : ?loc:Loc.t -> global -> 'a
 val error_inductive : ?loc:Loc.t -> global -> 'a

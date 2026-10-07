@@ -1,0 +1,189 @@
+import java.util.function.Function;
+
+class java_case_clash {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface bool {
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+}
+
+public interface ascii {
+public static class Ascii implements ascii {
+  final bool Ascii0;
+  final bool Ascii1;
+  
+  Ascii(bool Ascii0, bool Ascii1) {
+    this.Ascii0 = Ascii0;
+    this.Ascii1 = Ascii1;
+    }
+    
+  }
+
+}
+
+static Function<ascii, bool> ascii_fst = a ->
+  ((a instanceof ascii.Ascii) ? let(((ascii.Ascii)a).Ascii0, b -> b)
+  : error("non-exhaustive match"))
+  ;
+
+public interface p {
+public static class Leaf implements p {
+  
+  Leaf() {
+    }
+    
+  }
+
+public static class Node implements p {
+  
+  Node() {
+    }
+    
+  }
+
+}
+
+public interface q {
+public static class LEAF implements q {
+  
+  LEAF() {
+    }
+    
+  }
+
+public static class NODE implements q {
+  
+  NODE() {
+    }
+    
+  }
+
+}
+
+static Function<p, q> p_to_q = x ->
+  ((x instanceof p.Leaf) ? ((q) new q.LEAF())
+  : (x instanceof p.Node) ? ((q) new q.NODE())
+  : error("non-exhaustive match"))
+  ;
+
+public interface fooBar {
+public static class FB1 implements fooBar {
+  
+  FB1() {
+    }
+    
+  }
+
+public static class FB2 implements fooBar {
+  
+  FB2() {
+    }
+    
+  }
+
+}
+
+public interface foobar0 {
+public static class Fb implements foobar0 {
+  final fooBar Fb0;
+  
+  Fb(fooBar Fb0) {
+    this.Fb0 = Fb0;
+    }
+    
+  }
+
+public static class NoFb implements foobar0 {
+  
+  NoFb() {
+    }
+    
+  }
+
+}
+
+static Function<fooBar, foobar0> wrap = x -> ((foobar0) new foobar0.Fb(x))
+  ;
+
+static Function<foobar0, fooBar> unwrap = x ->
+  ((x instanceof foobar0.Fb) ? let(((foobar0.Fb)x).Fb0, y -> y)
+  : (x instanceof foobar0.NoFb) ? ((fooBar) new fooBar.FB1())
+  : error("non-exhaustive match"))
+  ;
+
+public interface ab {
+public static class Ab implements ab {
+  
+  Ab() {
+    }
+    
+  }
+
+public static class AB0 implements ab {
+  
+  AB0() {
+    }
+    
+  }
+
+}
+
+static Function<ab, ab> flip = x ->
+  ((x instanceof ab.Ab) ? ((ab) new ab.AB0())
+  : (x instanceof ab.AB0) ? ((ab) new ab.Ab())
+  : error("non-exhaustive match"))
+  ;
+
+public interface java_case_clash0 {
+public static class Clash implements java_case_clash0 {
+  final ab Clash0;
+  
+  Clash(ab Clash0) {
+    this.Clash0 = Clash0;
+    }
+    
+  }
+
+public static class NoClash implements java_case_clash0 {
+  
+  NoClash() {
+    }
+    
+  }
+
+}
+
+static Function<java_case_clash0, java_case_clash0> clash_flip = x ->
+  ((x instanceof java_case_clash0.Clash) ? let(((java_case_clash0.Clash)x).Clash0, y ->
+                                           ((java_case_clash0)
+                                           new java_case_clash0.Clash(flip
+                                           .apply(y))))
+  : (x instanceof java_case_clash0.NoClash) ? ((java_case_clash0)
+      new java_case_clash0.NoClash())
+  : error("non-exhaustive match"))
+  ;
+
+}

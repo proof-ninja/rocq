@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,15 +30,17 @@ public static class S implements nat {
     
   }
 
+}
+
 static Function<Object, Object> idf = a -> a
   ;
 
 static Function<nat, Function<nat, nat>> add;
 static {
 add = m -> n ->
-((m instanceof O) ? n
-: (m instanceof S) ? let(((S)m).S0, m$ ->
-                     ((nat) new S(add.apply(m$).apply(n))))
+((m instanceof nat.O) ? n
+: (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                         ((nat) new nat.S(add.apply(m$).apply(n))))
 : error("non-exhaustive match"))
 ;
 }
@@ -52,7 +54,7 @@ static Function<Function<nat, nat>, Function<nat, nat>>
 static Function<Function<nat, nat>, Function<nat, nat>>
   let_runout_cons = f -> n ->
   let(((Function<Object, Object>) idf.apply(f)).apply(n), m ->
-  ((nat) new S(((nat) m))))
+  ((nat) new nat.S(((nat) m))))
   ;
 
 static Function<Function<nat, nat>, Function<nat, nat>>
@@ -64,12 +66,12 @@ static Function<Function<nat, nat>, Function<nat, nat>>
 static Function<Function<nat, nat>, Function<nat, nat>>
   let_runout_fun = f -> n ->
   let(((Function<Object, Object>) idf.apply(idf)).apply(f), g ->
-  ((nat) new S(((nat) ((Function<Object, Object>) g).apply(n)))))
+  ((nat) new nat.S(((nat) ((Function<Object, Object>) g).apply(n)))))
   ;
 
 static Function<Function<nat, nat>, Function<nat, nat>>
   arg_runout = f -> n -> ((nat)
-  new S(((nat) ((Function<Object, Object>) idf.apply(f)).apply(n))))
+  new nat.S(((nat) ((Function<Object, Object>) idf.apply(f)).apply(n))))
   ;
 
 }

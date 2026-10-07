@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface value {}
+public interface value {
 public static class A implements value {
   
   A() {
@@ -27,6 +27,8 @@ public static class B implements value {
     }
     
   }
+
+}
 
 static value mystery = error("AXIOM TO BE REALIZED (axiom.mystery)");
 

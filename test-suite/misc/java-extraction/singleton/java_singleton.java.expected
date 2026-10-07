@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface list {}
+}
+
+public interface list {
 public static class Nil implements list {
   
   Nil() {
@@ -49,6 +51,8 @@ public static class Cons implements list {
     
   }
 
+}
+
 static Function<nat, nat> wrap = n -> n
   ;
 
@@ -59,11 +63,11 @@ static Function<Function<Object, Object>, Function<Object, Object>>
   unbox = b -> b
   ;
 
-static Function<nat, nat> succ = x -> ((nat) new S(x))
+static Function<nat, nat> succ = x -> ((nat) new nat.S(x))
   ;
 
 static Function<nat, nat> apply_box_lam = n ->
-  ((nat) unbox.apply(x -> ((nat) new S(((nat) x)))
+  ((nat) unbox.apply(x -> ((nat) new nat.S(((nat) x)))
               ).apply(n))
   ;
 
@@ -74,12 +78,13 @@ static Function<nat, nat> apply_box_glob = n ->
 static Function<Object, Object> unid = x -> x
   ;
 
-static Function<nat, nat> use_id = n -> ((nat) new S(((nat) unid.apply(n))))
+static Function<nat, nat> use_id = n -> ((nat)
+  new nat.S(((nat) unid.apply(n))))
   ;
 
 static Function<nat, nat> use_id_fun = n ->
   ((nat) ((Function<Object, Object>) unid.apply(((Function<Object, Object>)(x ->
-                                         ((nat) new S(((nat) x)))
+                                         ((nat) new nat.S(((nat) x)))
                                          )))).apply(n))
   ;
 
@@ -89,7 +94,7 @@ static Function<nat, nat> rewrap = n -> n
 static Function<nat, nat> unrewrap = r -> r
   ;
 
-public interface holder {}
+public interface holder {
 public static class Hold implements holder {
   final nat Hold0;
   
@@ -106,22 +111,26 @@ public static class Empty implements holder {
     
   }
 
-static Function<nat, holder> hold = n -> ((holder) new Hold(n))
+}
+
+static Function<nat, holder> hold = n -> ((holder) new holder.Hold(n))
   ;
 
 static Function<holder, nat> held = h ->
-  ((h instanceof Hold) ? let(((Hold)h).Hold0, w -> unwrap.apply(w))
-  : (h instanceof Empty) ? ((nat) new O())
+  ((h instanceof holder.Hold) ? let(((holder.Hold)h).Hold0, w ->
+                                unwrap.apply(w))
+  : (h instanceof holder.Empty) ? ((nat) new nat.O())
   : error("non-exhaustive match"))
   ;
 
-static Function<nat, list> wrapped_list = n -> ((list) new Cons(n, ((list)
-  new Nil())))
+static Function<nat, list> wrapped_list = n -> ((list)
+  new list.Cons(n, ((list) new list.Nil())))
   ;
 
 static Function<list, nat> first_unwrapped = l ->
-  ((l instanceof Nil) ? ((nat) new O())
-  : (l instanceof Cons) ? let(((nat) ((Cons)l).Cons0), w -> unwrap.apply(w))
+  ((l instanceof list.Nil) ? ((nat) new nat.O())
+  : (l instanceof list.Cons) ? let(((nat) ((list.Cons)l).Cons0), w ->
+                               unwrap.apply(w))
   : error("non-exhaustive match"))
   ;
 
@@ -129,9 +138,9 @@ static Function<nat, Function<nat, nat>>
 add_wrapped;
 static {
 add_wrapped = w -> n ->
-((n instanceof O) ? unwrap.apply(w)
-: (n instanceof S) ? let(((S)n).S0, m ->
-                     ((nat) new S(add_wrapped.apply(w).apply(m))))
+((n instanceof nat.O) ? unwrap.apply(w)
+: (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                         ((nat) new nat.S(add_wrapped.apply(w).apply(m))))
 : error("non-exhaustive match"))
 ;
 }

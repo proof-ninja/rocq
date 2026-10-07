@@ -20,7 +20,7 @@ a2) {
   return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
 }
 
-public interface positive {}
+public interface positive {
 public static class XI implements positive {
   final positive XI0;
   
@@ -46,7 +46,9 @@ public static class XH implements positive {
     
   }
 
-public interface n {}
+}
+
+public interface n {
 public static class N0 implements n {
   
   N0() {
@@ -63,7 +65,9 @@ public static class Npos implements n {
     
   }
 
-public interface z {}
+}
+
+public interface z {
 public static class Z0 implements z {
   
   Z0() {
@@ -89,7 +93,9 @@ public static class Zneg implements z {
     
   }
 
-public interface nat {}
+}
+
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -106,7 +112,9 @@ public static class S implements nat {
     
   }
 
-public interface point {}
+}
+
+public interface point {
 public static class P implements point {
   final nat P0;
   final nat P1;
@@ -118,7 +126,9 @@ public static class P implements point {
     
   }
 
-public interface rec {}
+}
+
+public interface rec {
 public static class MkRec implements rec {
   final nat MkRec0;
   final nat MkRec1;
@@ -130,66 +140,71 @@ public static class MkRec implements rec {
     
   }
 
+}
+
 static Function<Function<nat, Function<nat, Object>>, Function<point, Object>>
   point_rect = p0 -> p ->
-  ((p instanceof P) ? let(((P)p).P0, n0 ->
-                      let(((P)p).P1, n1 -> p0.apply(n0).apply(n1)))
+  ((p instanceof point.P) ? let(((point.P)p).P0, n0 ->
+                            let(((point.P)p).P1, n1 ->
+                            p0.apply(n0).apply(n1)))
   : error("non-exhaustive match"))
   ;
 
 static Function<Function<nat, Function<nat, Object>>, Function<point, Object>>
   point_rec = p0 -> p ->
-  ((p instanceof P) ? let(((P)p).P0, n0 ->
-                      let(((P)p).P1, n1 -> p0.apply(n0).apply(n1)))
+  ((p instanceof point.P) ? let(((point.P)p).P0, n0 ->
+                            let(((point.P)p).P1, n1 ->
+                            p0.apply(n0).apply(n1)))
   : error("non-exhaustive match"))
   ;
 
 static Function<rec, nat> rx = r ->
-  ((r instanceof MkRec) ? let(((MkRec)r).MkRec0, rx0 -> rx0)
+  ((r instanceof rec.MkRec) ? let(((rec.MkRec)r).MkRec0, rx0 -> rx0)
   : error("non-exhaustive match"))
   ;
 
 static Function<rec, nat> ry = r ->
-  ((r instanceof MkRec) ? let(((MkRec)r).MkRec1, ry0 -> ry0)
+  ((r instanceof rec.MkRec) ? let(((rec.MkRec)r).MkRec1, ry0 -> ry0)
   : error("non-exhaustive match"))
   ;
 
 static Function<point, nat> snd_of = p ->
-  ((p instanceof P) ? let(((P)p).P1, y -> y)
+  ((p instanceof point.P) ? let(((point.P)p).P1, y -> y)
   : error("non-exhaustive match"))
   ;
 
 static nat
-  cross = snd_of.apply(((point) new P(((nat) new O()), ((nat) new S(((nat)
-                new O()))))));
+  cross = snd_of.apply(((point) new point.P(((nat) new nat.O()), ((nat)
+                new nat.S(((nat) new nat.O()))))));
 
 static Function<point, point> back = p -> p
   ;
 
 static Function<point, nat> fst_of = p ->
-  ((p instanceof P) ? let(((P)p).P0, x -> x)
+  ((p instanceof point.P) ? let(((point.P)p).P0, x -> x)
   : error("non-exhaustive match"))
   ;
 
 static Function<rec, nat> rec_sum = r ->
-  ((r instanceof MkRec) ? let(((MkRec)r).MkRec0, x ->
-                          let(((MkRec)r).MkRec1, y ->
-                          fix2(add -> m -> n0 ->
-                          ((m instanceof O) ? n0
-                          : (m instanceof S) ? let(((S)m).S0, m$ ->
-                                               ((nat)
-                                               new S(add.apply(m$).apply(n0))))
-                          : error("non-exhaustive match"))
-                          , x, y)))
+  ((r instanceof rec.MkRec) ? let(((rec.MkRec)r).MkRec0, x ->
+                              let(((rec.MkRec)r).MkRec1, y ->
+                              fix2(add -> m -> n0 ->
+                              ((m instanceof nat.O) ? n0
+                              : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                                                       ((nat)
+                                                       new nat.S(add.apply(m$)
+                                                                    .apply(n0))))
+                              : error("non-exhaustive match"))
+                              , x, y)))
   : error("non-exhaustive match"))
   ;
 
 static Function<nat, Function<nat, rec>> mk_rec = x -> y -> ((rec)
-  new MkRec(x, y))
+  new rec.MkRec(x, y))
   ;
 
 static Function<rec, nat> rec_x = r ->
-  ((r instanceof MkRec) ? let(((MkRec)r).MkRec0, rx0 -> rx0)
+  ((r instanceof rec.MkRec) ? let(((rec.MkRec)r).MkRec0, rx0 -> rx0)
   : error("non-exhaustive match"))
   ;
 
@@ -197,15 +212,17 @@ static Function<Function<positive, Function<Object, Object>>, Function<Function<
 positive_rect;
 static {
 positive_rect = xI -> xO -> xH -> p ->
-((p instanceof XI) ? let(((XI)p).XI0, p0 ->
-                     xI.apply(p0).apply(positive_rect.apply(xI).apply(xO)
+((p instanceof positive.XI) ? let(((positive.XI)p).XI0, p0 ->
+                              xI.apply(p0).apply(positive_rect.apply(xI)
+                                                              .apply(xO)
+                                                              .apply(xH)
+                                                              .apply(p0)))
+: (p instanceof positive.XO) ? let(((positive.XO)p).XO0, p0 ->
+                               xO.apply(p0).apply(positive_rect.apply(xI)
+                                                               .apply(xO)
                                                                .apply(xH)
                                                                .apply(p0)))
-: (p instanceof XO) ? let(((XO)p).XO0, p0 ->
-                      xO.apply(p0).apply(positive_rect.apply(xI).apply(xO)
-                                                                .apply(xH)
-                                                                .apply(p0)))
-: (p instanceof XH) ? xH
+: (p instanceof positive.XH) ? xH
 : error("non-exhaustive match"))
 ;
 }
@@ -214,57 +231,62 @@ static Function<Function<positive, Function<Object, Object>>, Function<Function<
 positive_rec;
 static {
 positive_rec = xI -> xO -> xH -> p ->
-((p instanceof XI) ? let(((XI)p).XI0, p0 ->
-                     xI.apply(p0).apply(positive_rec.apply(xI).apply(xO)
+((p instanceof positive.XI) ? let(((positive.XI)p).XI0, p0 ->
+                              xI.apply(p0).apply(positive_rec.apply(xI)
+                                                             .apply(xO)
+                                                             .apply(xH)
+                                                             .apply(p0)))
+: (p instanceof positive.XO) ? let(((positive.XO)p).XO0, p0 ->
+                               xO.apply(p0).apply(positive_rec.apply(xI)
+                                                              .apply(xO)
                                                               .apply(xH)
                                                               .apply(p0)))
-: (p instanceof XO) ? let(((XO)p).XO0, p0 ->
-                      xO.apply(p0).apply(positive_rec.apply(xI).apply(xO)
-                                                               .apply(xH)
-                                                               .apply(p0)))
-: (p instanceof XH) ? xH
+: (p instanceof positive.XH) ? xH
 : error("non-exhaustive match"))
 ;
 }
 
 static Function<Object, Function<Function<positive, Object>, Function<n, Object>>>
   n_rect = n0 -> npos -> n1 ->
-  ((n1 instanceof N0) ? n0
-  : (n1 instanceof Npos) ? let(((Npos)n1).Npos0, p -> npos.apply(p))
+  ((n1 instanceof n.N0) ? n0
+  : (n1 instanceof n.Npos) ? let(((n.Npos)n1).Npos0, p -> npos.apply(p))
   : error("non-exhaustive match"))
   ;
 
 static Function<Object, Function<Function<positive, Object>, Function<n, Object>>>
   n_rec = n0 -> npos -> n1 ->
-  ((n1 instanceof N0) ? n0
-  : (n1 instanceof Npos) ? let(((Npos)n1).Npos0, p -> npos.apply(p))
+  ((n1 instanceof n.N0) ? n0
+  : (n1 instanceof n.Npos) ? let(((n.Npos)n1).Npos0, p -> npos.apply(p))
   : error("non-exhaustive match"))
   ;
 
 static Function<Object, Function<Function<positive, Object>, Function<Function<positive, Object>, Function<z, Object>>>>
   z_rect = z0 -> zpos -> zneg -> z1 ->
-  ((z1 instanceof Z0) ? z0
-  : (z1 instanceof Zpos) ? let(((Zpos)z1).Zpos0, p -> zpos.apply(p))
-  : (z1 instanceof Zneg) ? let(((Zneg)z1).Zneg0, p -> zneg.apply(p))
+  ((z1 instanceof z.Z0) ? z0
+  : (z1 instanceof z.Zpos) ? let(((z.Zpos)z1).Zpos0, p -> zpos.apply(p))
+  : (z1 instanceof z.Zneg) ? let(((z.Zneg)z1).Zneg0, p -> zneg.apply(p))
   : error("non-exhaustive match"))
   ;
 
 static Function<Object, Function<Function<positive, Object>, Function<Function<positive, Object>, Function<z, Object>>>>
   z_rec = z0 -> zpos -> zneg -> z1 ->
-  ((z1 instanceof Z0) ? z0
-  : (z1 instanceof Zpos) ? let(((Zpos)z1).Zpos0, p -> zpos.apply(p))
-  : (z1 instanceof Zneg) ? let(((Zneg)z1).Zneg0, p -> zneg.apply(p))
+  ((z1 instanceof z.Z0) ? z0
+  : (z1 instanceof z.Zpos) ? let(((z.Zpos)z1).Zpos0, p -> zpos.apply(p))
+  : (z1 instanceof z.Zneg) ? let(((z.Zneg)z1).Zneg0, p -> zneg.apply(p))
   : error("non-exhaustive match"))
   ;
 
-static positive two = ((positive) new XO(((positive) new XH())));
+static positive two = ((positive) new positive.XO(((positive)
+  new positive.XH())));
 
 static Function<positive, nat> digits;
 static {
 digits = p ->
-((p instanceof XI) ? let(((XI)p).XI0, q -> ((nat) new S(digits.apply(q))))
-: (p instanceof XO) ? let(((XO)p).XO0, q -> ((nat) new S(digits.apply(q))))
-: (p instanceof XH) ? ((nat) new S(((nat) new O())))
+((p instanceof positive.XI) ? let(((positive.XI)p).XI0, q ->
+                              ((nat) new nat.S(digits.apply(q))))
+: (p instanceof positive.XO) ? let(((positive.XO)p).XO0, q ->
+                               ((nat) new nat.S(digits.apply(q))))
+: (p instanceof positive.XH) ? ((nat) new nat.S(((nat) new nat.O())))
 : error("non-exhaustive match"))
 ;
 }

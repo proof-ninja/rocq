@@ -1,25 +1,25 @@
 public class DriverPolyList {
   static java_poly_list.nat intToNat(int n) {
-    java_poly_list.nat r = new java_poly_list.O();
+    java_poly_list.nat r = new java_poly_list.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_poly_list.S(r);
+      r = new java_poly_list.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_poly_list.nat n) {
     int i = 0;
-    while (n instanceof java_poly_list.S) {
+    while (n instanceof java_poly_list.nat.S) {
       i++;
-      n = ((java_poly_list.S) n).S0;
+      n = ((java_poly_list.nat.S) n).S0;
     }
     return i;
   }
 
   static java_poly_list.list build(int... xs) {
-    java_poly_list.list l = new java_poly_list.Nil();
+    java_poly_list.list l = new java_poly_list.list.Nil();
     for (int i = xs.length - 1; i >= 0; i--) {
-      l = new java_poly_list.Cons(intToNat(xs[i]), l);
+      l = new java_poly_list.list.Cons(intToNat(xs[i]), l);
     }
     return l;
   }
@@ -29,8 +29,8 @@ public class DriverPolyList {
   static String show(java_poly_list.list l) {
     StringBuilder sb = new StringBuilder("[");
     boolean first = true;
-    while (l instanceof java_poly_list.Cons) {
-      java_poly_list.Cons c = (java_poly_list.Cons) l;
+    while (l instanceof java_poly_list.list.Cons) {
+      java_poly_list.list.Cons c = (java_poly_list.list.Cons) l;
       if (!first) {
         sb.append("; ");
       }
