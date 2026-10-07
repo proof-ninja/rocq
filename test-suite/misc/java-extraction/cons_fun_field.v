@@ -14,33 +14,33 @@ Inductive nat := O | S : nat -> nat.
 Fixpoint add (m n : nat) : nat :=
   match m with O => n | S m' => S (add m' n) end.
 
-Inductive box2 (A : Type) := Box2 : (A -> A) -> nat -> box2 A.
-Arguments Box2 {A}.
-Definition unbox2 {A} (b : box2 A) : A -> A :=
-  match b with Box2 f _ => f end.
+Inductive fnbox (A : Type) := MkFnbox : (A -> A) -> nat -> fnbox A.
+Arguments MkFnbox {A}.
+Definition unfnbox {A} (b : fnbox A) : A -> A :=
+  match b with MkFnbox f _ => f end.
 Definition succ (x : nat) := S x.
 
 (* 1. A global function. *)
-Definition p_glob : nat := unbox2 (Box2 succ O) O.
+Definition p_glob : nat := unfnbox (MkFnbox succ O) O.
 
 (* 2. A bare lambda: it keeps the instantiated type as its target and is
    bridged after that. *)
-Definition p_lam : nat := unbox2 (Box2 (fun x => S x) O) O.
+Definition p_lam : nat := unfnbox (MkFnbox (fun x => S x) O) O.
 
 (* 3. A local variable and a partial application. *)
-Definition mk_var (f : nat -> nat) : box2 nat := Box2 f O.
-Definition mk_app (n : nat) : box2 nat := Box2 (add n) O.
-Definition p_var : nat := unbox2 (mk_var succ) O.
-Definition p_app : nat := unbox2 (mk_app (S O)) (S O).
+Definition mk_var (f : nat -> nat) : fnbox nat := MkFnbox f O.
+Definition mk_app (n : nat) : fnbox nat := MkFnbox (add n) O.
+Definition p_var : nat := unfnbox (mk_var succ) O.
+Definition p_app : nat := unfnbox (mk_app (S O)) (S O).
 
 (* 4. Inside polymorphic code the instantiated type erases to the declared
    one: no cast. *)
-Definition mk_poly {A} (f : A -> A) : box2 A := Box2 f O.
-Definition p_poly : nat := unbox2 (mk_poly succ) O.
+Definition mk_poly {A} (f : A -> A) : fnbox A := MkFnbox f O.
+Definition p_poly : nat := unfnbox (mk_poly succ) O.
 
 (* 5. The type variable instantiated to a function type: the lambda's
    parameter is itself a function. *)
 Definition p_fun : nat :=
-  unbox2 (Box2 (fun (f : nat -> nat) => fun x => f (f x)) O) succ O.
+  unfnbox (MkFnbox (fun (f : nat -> nat) => fun x => f (f x)) O) succ O.
 
 Extraction "java_cons_fun_field.java" p_glob p_lam p_var p_app p_poly p_fun.
