@@ -40,20 +40,20 @@ add = m -> n ->
 ;
 }
 
-public interface box2 {}
-public static class Box2 implements box2 {
-  final Function<Object, Object> Box20;
-  final nat Box21;
+public interface fnbox {}
+public static class MkFnbox implements fnbox {
+  final Function<Object, Object> MkFnbox0;
+  final nat MkFnbox1;
   
-  Box2(Function<Object, Object> Box20, nat Box21) {
-    this.Box20 = Box20;
-    this.Box21 = Box21;
+  MkFnbox(Function<Object, Object> MkFnbox0, nat MkFnbox1) {
+    this.MkFnbox0 = MkFnbox0;
+    this.MkFnbox1 = MkFnbox1;
     }
     
   }
 
-static Function<box2, Function<Object, Object>> unbox2 = b ->
-  ((b instanceof Box2) ? let(((Box2)b).Box20, f -> f)
+static Function<fnbox, Function<Object, Object>> unfnbox = b ->
+  ((b instanceof MkFnbox) ? let(((MkFnbox)b).MkFnbox0, f -> f)
   : error("non-exhaustive match"))
   ;
 
@@ -61,47 +61,47 @@ static Function<nat, nat> succ = x -> ((nat) new S(x))
   ;
 
 static nat
-  p_glob = ((nat) unbox2.apply(((box2)
-                        new Box2(((Function<Object, Object>) (Object) succ), ((nat)
-                        new O())))).apply(((nat) new O())));
+  p_glob = ((nat) unfnbox.apply(((fnbox)
+                         new MkFnbox(((Function<Object, Object>) (Object) succ), ((nat)
+                         new O())))).apply(((nat) new O())));
 
 static nat
-  p_lam = ((nat) unbox2.apply(((box2)
-                       new Box2(((Function<Object, Object>) (Object) ((
-                       Function<nat, nat>)(x -> ((nat) new S(x))
-                       ))), ((nat) new O())))).apply(((nat) new O())));
+  p_lam = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(((Function<Object, Object>) (Object) ((
+                        Function<nat, nat>)(x -> ((nat) new S(x))
+                        ))), ((nat) new O())))).apply(((nat) new O())));
 
-static Function<Function<nat, nat>, box2> mk_var = f -> ((box2)
-  new Box2(((Function<Object, Object>) (Object) f), ((nat) new O())))
+static Function<Function<nat, nat>, fnbox> mk_var = f -> ((fnbox)
+  new MkFnbox(((Function<Object, Object>) (Object) f), ((nat) new O())))
   ;
 
-static Function<nat, box2> mk_app = n -> ((box2)
-  new Box2(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
+static Function<nat, fnbox> mk_app = n -> ((fnbox)
+  new MkFnbox(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
   new O())))
   ;
 
 static nat
-  p_var = ((nat) unbox2.apply(mk_var.apply(succ)).apply(((nat) new O())));
+  p_var = ((nat) unfnbox.apply(mk_var.apply(succ)).apply(((nat) new O())));
 
 static nat
-  p_app = ((nat) unbox2.apply(mk_app.apply(((nat) new S(((nat) new O())))))
-                       .apply(((nat) new S(((nat) new O())))));
+  p_app = ((nat) unfnbox.apply(mk_app.apply(((nat) new S(((nat) new O())))))
+                        .apply(((nat) new S(((nat) new O())))));
 
-static Function<Function<Object, Object>, box2> mk_poly = f -> ((box2)
-  new Box2(f, ((nat) new O())))
+static Function<Function<Object, Object>, fnbox> mk_poly = f -> ((fnbox)
+  new MkFnbox(f, ((nat) new O())))
   ;
 
 static nat
-  p_poly = ((nat) unbox2.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
-                        .apply(((nat) new O())));
+  p_poly = ((nat) unfnbox.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
+                         .apply(((nat) new O())));
 
 static nat
-  p_fun = ((nat) ((Function<Object, Object>) unbox2.apply(((box2)
-                                                   new Box2(((Function<Object, Object>) (Object) ((
-                                                   Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
-                                                   f.apply(f.apply(x))
-                                                   ))), ((nat)
-                                                   new O())))).apply(succ))
+  p_fun = ((nat) ((Function<Object, Object>) unfnbox.apply(((fnbox)
+                                                    new MkFnbox(((Function<Object, Object>) (Object) ((
+                                                    Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
+                                                    f.apply(f.apply(x))
+                                                    ))), ((nat)
+                                                    new O())))).apply(succ))
   .apply(((nat) new O())));
 
 }
