@@ -161,10 +161,12 @@ let get_ind r = let open GlobRef in match r.glob with
   | _ -> assert false
 
 (* A constructor class is nested in the class of its inductive type, so outside
-   of it the constructor is referred to as [<type>.<constructor>]. *)
+   of it the constructor is referred to as [<type>.<constructor>]. Only
+   [Extract Inductive] makes a constructor custom, and it makes its inductive
+   type custom too. *)
 let pp_cons_class table r =
   let ind = get_ind r in
-  if is_custom ind || is_inline_custom r then pp_global table Cons r
+  if is_custom ind then pp_global table Cons r
   else pp_global table Type ind ++ str "." ++ pp_global table Cons r
 
 (* The class of a constructor pattern, and the base name of its fields *)
@@ -613,7 +615,7 @@ let rec pp_expr table env tenv expected args =
           paren (prlist_with_sep comma pp_arg (List.combine args' arg_tys)) in
         let ind = get_ind r in
         let cons =
-          if is_custom ind || is_inline_custom ind then cons
+          if is_custom ind then cons
           else paren (paren (pp_global table Type ind) ++ spc () ++ cons)
         in
         pp_cast table ~expected ~actual:(Some typ) cons

@@ -1,0 +1,90 @@
+File "./output/Extraction_java_class_clash.v", line 20, characters 0-31:
+Warning: The Java class name for foobar clashes up to case with the class
+fooBar extracted from M.fooBar (case-insensitive file systems cannot hold
+class files differing only in case), so it is renamed to foobar0. The class
+referenced first keeps its name.
+[extraction-java-class-clash,extraction,default]
+File "./output/Extraction_java_class_clash.v", line 20, characters 0-31:
+Warning: The Java class name for AB clashes up to case with the class Ab
+(case-insensitive file systems cannot hold class files differing only in
+case), so it is renamed to AB0. The class referenced first keeps its name.
+[extraction-java-class-clash,extraction,default]
+import java.util.function.Function;
+
+class Main {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface fooBar {
+public static class FB1 implements fooBar {
+  
+  FB1() {
+    }
+    
+  }
+
+public static class FB2 implements fooBar {
+  
+  FB2() {
+    }
+    
+  }
+
+}
+
+public interface foobar0 {
+public static class Fb implements foobar0 {
+  final fooBar Fb0;
+  
+  Fb(fooBar Fb0) {
+    this.Fb0 = Fb0;
+    }
+    
+  }
+
+public static class NoFb implements foobar0 {
+  
+  NoFb() {
+    }
+    
+  }
+
+}
+
+static Function<fooBar, foobar0> wrap = x -> ((foobar0) new foobar0.Fb(x))
+  ;
+
+public interface ab {
+public static class Ab implements ab {
+  
+  Ab() {
+    }
+    
+  }
+
+public static class AB0 implements ab {
+  
+  AB0() {
+    }
+    
+  }
+
+}
+
+static Function<ab, ab> flip = x ->
+  ((x instanceof ab.Ab) ? ((ab) new ab.AB0())
+  : (x instanceof ab.AB0) ? ((ab) new ab.Ab())
+  : error("non-exhaustive match"))
+  ;
+
+}
+

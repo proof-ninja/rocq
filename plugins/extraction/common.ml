@@ -244,10 +244,11 @@ type state = {
   params_ren : MBId.Set.t; (* List of module parameters that we should alpha-rename *)
   duplicates : int * string DupMap.t; (* table of local module wrappers used to provide non-ambiguous names *)
   (* Java: names of the classes emitted directly inside the top-level class
-     (keyed by their lowercase form) and those nested inside each inductive
-     type, see [java_class_scope] *)
-  java_top_classes : string String.Map.t;
-  java_nested_classes : string String.Map.t Refmap'.t;
+     (keyed by their lowercase form, together with the reference extracted to
+     them) and those nested inside each inductive type, see
+     [java_class_scope] *)
+  java_top_classes : (string * global) String.Map.t;
+  java_nested_classes : (string * global) String.Map.t Refmap'.t;
   java_top_class : string option;
 }
 
@@ -414,18 +415,24 @@ let get_java_classes state = function
 
 (* The class already in [scope] that [name] cannot coexist with, if any: one
    equal to it up to case, or the enclosing top-level class itself (JLS 8.1
-   forbids a nested class to share the simple name of an enclosing class). *)
+   forbids a nested class to share the simple name of an enclosing class).
+   It comes with the reference extracted to it, [None] for the top-level
+   class. Class names are ASCII ([kindcase_id] goes through [ascii_of_id], and
+   instance suffixes are made of [X] and [O]) and are the very names of the
+   class files, so [String.lowercase_ascii] is exactly the case folding of the
+   file system. *)
 let find_java_class_clash s scope name =
   let state = s.state.contents in
   match state.java_top_class with
-  | Some top when String.equal top name -> Some top
+  | Some top when String.equal top name -> Some (top, None)
   | _ ->
     String.Map.find_opt (String.lowercase_ascii name) (get_java_classes state scope)
+    |> Option.map (fun (c, r) -> (c, Some r))
 
-let add_java_class s scope name =
+let add_java_class s scope name r =
   let state = s.state.contents in
   let classes =
-    String.Map.add (String.lowercase_ascii name) name (get_java_classes state scope)
+    String.Map.add (String.lowercase_ascii name) (name, r) (get_java_classes state scope)
   in
   s.state := match scope with
     | JavaTop -> { state with java_top_classes = classes }
@@ -528,7 +535,10 @@ and mp_renaming table x =
 (*s Renamings creation for a [global_reference]: we build its fully-qualified
     name in a [string list] form (head is the short name). *)
 
-(* The scope of the Java class a reference is extracted to, if any. *)
+(* The scope of the Java class a reference is extracted to, if any. Java
+   extraction is monolithic only (there is no modular Java extraction yet, see
+   [pp_global_with_key]), so only the monolithic case of [ref_renaming_fun]
+   keeps class names distinct. *)
 
 let java_class_scope k r =
   if lang () != Java then None
@@ -565,14 +575,15 @@ let ref_renaming_fun table (k,r) =
         in
         let s = name id in
         let () = match clash id0 with
-          | Some c when not (Id.Set.mem id0 globs) ->
-            warning_java_class_clash r c s
+          | Some (c, owner) when not (Id.Set.mem id0 globs) ->
+            warning_java_class_clash r c owner s
           | _ -> ()
         in
-        let () = State.add_java_class table scope s in
+        let () = State.add_java_class table scope s r in
         s
       end
-    | _ -> app_suf (modular_rename table k idg)
+    | _ -> (* no Java class clash check here, see [java_class_scope] *)
+      app_suf (modular_rename table k idg)
   in
   let () = State.add_global_ids table (Id.of_string s) in
   s::l
