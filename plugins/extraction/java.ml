@@ -338,6 +338,9 @@ let rec erased_type_eq t1 t2 = match t1, t2 with
 
 let erases_to_object t = match erase_type t with Tunknown -> true | _ -> false
 
+(* Whether two types print to the same Java type, i.e. need no cast. *)
+let erases_same t1 t2 = erased_type_eq (erase_type t1) (erase_type t2)
+
 let rec strip_arrows t k =
   if Int.equal k 0 then Some t
   else match t with
@@ -422,16 +425,12 @@ let pp_cast table ~expected ~actual pp =
   match expected, actual with
   | None, _ | _, None -> pp
   | Some ety, Some aty ->
-      let ety = erase_type ety in
-      match ety with
-      | Tunknown -> pp
-      | _ ->
-          if erased_type_eq (erase_type aty) ety then pp
-          else
-            let bridge =
-              if erases_to_object aty then mt () else str "(Object) "
-            in
-            paren (paren (pp_type table ety) ++ str " " ++ bridge ++ pp)
+      if erases_to_object ety || erases_same aty ety then pp
+      else
+        let bridge =
+          if erases_to_object aty then mt () else str "(Object) "
+        in
+        paren (paren (pp_type table (erase_type ety)) ++ str " " ++ bridge ++ pp)
 
 (*s Lambdas at [Object].
 
@@ -447,10 +446,11 @@ let pp_cast table ~expected ~actual pp =
 
     [expected] is [Object]-erased (or runs out of arrows) exactly at the
     first two kinds of position, so the [MLlam] case handles them itself.
-    [let] passes [Some Tunknown] for a lambda value on purpose. Constructor
-    fields are the exception: there [expected] is the instantiated field
-    type (needed to type the body), while the field's static type is the
-    erased declared one, so [MLcons] decides on the declared type. *)
+    [let] passes [Some Tunknown] for a lambda value on purpose. A bare
+    lambda in a constructor field is the exception: [MLcons] prints it at
+    the instantiated field type (which types the body precisely) and
+    supplies that type as the target itself, then bridges to the field's
+    declared type where the two differ. *)
 
 let rec strip_magic = function
   | MLmagic a -> strip_magic a
@@ -581,35 +581,37 @@ let rec pp_expr table env tenv expected args =
         (* The annotation's type arguments may mention aliases (e.g.
            [list natop]); they flow into field types via [type_subst_list]. *)
         let typ = expand_aliases typ in
-        (* Each argument is printed at its instantiated field type, then
-           bridged to the declared field type (over the inductive's type
-           variables: the static Java type of the field) where the two
-           erase differently, e.g. a [Function<nat, nat>] value for an
-           [A -> A] field of type [Function<Object, Object>]. This mirrors
-           the cast on the field access in [pp_one_pat]. For an [Object]
-           field the bridge is a plain upcast and [pp_cast] prints
-           nothing. *)
+        (* The declared field types (over the inductive's type variables:
+           the static Java types of the fields) and their instantiation at
+           the annotation's type arguments. *)
         let arg_tys = match constructor_arg_types r, typ with
           | Some tys, Tglob (_, targs) when Int.equal (List.length tys) (List.length args') ->
-              List.map (fun ty -> Some (type_subst_list targs ty), Some ty) tys
+              List.map (fun ty -> Some ty, Some (type_subst_list targs ty)) tys
           | _ -> List.map (fun _ -> None, None) args'
         in
-        (* A bare lambda whose field is not already its exact type needs
-           the instantiated function type as its target (see "Lambdas at
-           [Object]"): neither [Object] nor the [(Object)] bridge offers
-           one. When that type has too few arrows itself, the [MLlam] case
-           has already cast the lambda. *)
-        let pp_arg (a, (ety, declared)) =
-          let pp = pp_expr table env tenv ety [] a in
-          let pp = match ety, declared with
-            | Some ty, Some dty
-              when is_bare_lambda a
-                   && not (erased_type_eq (erase_type dty) (erase_type ty))
-                   && arrows_upto ty (lambda_arity a) >= lambda_arity a ->
-                pp_lambda_target table ty pp
-            | _ -> pp
-          in
-          pp_cast table ~expected:declared ~actual:ety pp
+        (* An argument is printed at the declared field type, like an
+           argument at a polymorphic parameter: a value whose type differs
+           from it after erasure (a [Function<nat, nat>] for an [A -> A]
+           field of type [Function<Object, Object>]) is bridged by the leaf
+           cases, and a lambda in tail position (a match branch, a [let]
+           body) finds the field as its target. This mirrors the cast on
+           the field access in [pp_one_pat]. A bare lambda instead takes
+           the instantiated type, which types its body precisely, as its
+           target (see "Lambdas at [Object]"), and is then bridged to the
+           declared type where the two differ; when the instantiated type
+           has too few arrows, the [MLlam] case has already cast it. *)
+        let pp_arg (a, (declared, inst)) =
+          match declared, inst with
+          | Some dty, Some ity when is_bare_lambda a ->
+              let pp = pp_expr table env tenv inst [] a in
+              let pp =
+                if not (erases_same dty ity)
+                   && arrows_upto ity (lambda_arity a) >= lambda_arity a
+                then pp_lambda_target table ity pp
+                else pp
+              in
+              pp_cast table ~expected:declared ~actual:inst pp
+          | _ -> pp_expr table env tenv declared [] a
         in
         let cons = str "new " ++ pp_global table Cons r ++
           paren (prlist_with_sep comma pp_arg (List.combine args' arg_tys)) in

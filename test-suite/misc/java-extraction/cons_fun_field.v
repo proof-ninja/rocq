@@ -43,4 +43,21 @@ Definition p_poly : nat := unfnbox (mk_poly succ) O.
 Definition p_fun : nat :=
   unfnbox (MkFnbox (fun (f : nat -> nat) => fun x => f (f x)) O) succ O.
 
-Extraction "java_cons_fun_field.java" p_glob p_lam p_var p_app p_poly p_fun.
+(* 6. A lambda in tail position of a match branch or of a [let] body: the
+   field itself is its target, so it takes the declared type ([Object]
+   parameters) and the other branch is bridged on its own. *)
+Inductive bool := true | false.
+Definition mk_match (b : bool) : fnbox nat :=
+  MkFnbox (match b with true => succ | false => fun x => x end) O.
+Definition p_match_true : nat := unfnbox (mk_match true) O.
+Definition p_match_false : nat := unfnbox (mk_match false) (S O).
+Definition p_let : nat :=
+  unfnbox (MkFnbox (let f := add (S O) in fun x => f (f x)) O) O.
+
+(* 7. A polymorphic application: its result is already [Object], so the
+   cast needs no [(Object)] bridge. *)
+Definition idf {A : Type} (a : A) : A := a.
+Definition p_idf : nat := unfnbox (MkFnbox (idf succ) O) O.
+
+Extraction "java_cons_fun_field.java"
+  p_glob p_lam p_var p_app p_poly p_fun p_match_true p_match_false p_let p_idf.
