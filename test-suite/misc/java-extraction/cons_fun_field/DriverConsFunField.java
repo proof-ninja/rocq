@@ -27,5 +27,13 @@ public class DriverConsFunField {
     check("polymorphic code", toInt(java_cons_fun_field.p_poly) == 1);
     // p_fun = succ (succ O) = 2
     check("function-typed variable", toInt(java_cons_fun_field.p_fun) == 2);
+    // p_match_true = succ O = 1
+    check("match branch (global)", toInt(java_cons_fun_field.p_match_true) == 1);
+    // p_match_false = (fun x => x) (S O) = 1
+    check("match branch (lambda)", toInt(java_cons_fun_field.p_match_false) == 1);
+    // p_let = add 1 (add 1 O) = 2
+    check("let body", toInt(java_cons_fun_field.p_let) == 2);
+    // p_idf = succ O = 1
+    check("polymorphic application", toInt(java_cons_fun_field.p_idf) == 1);
   }
 }

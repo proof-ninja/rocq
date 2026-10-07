@@ -104,4 +104,50 @@ static nat
                                                     new O())))).apply(succ))
   .apply(((nat) new O())));
 
+public interface bool {}
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+static Function<bool, fnbox> mk_match = b -> ((fnbox)
+  new MkFnbox(((b instanceof True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof False) ? x -> x
+      
+  : error("non-exhaustive match")), ((nat) new O())))
+  ;
+
+static nat
+  p_match_true = ((nat) unfnbox.apply(mk_match.apply(((bool) new True())))
+                               .apply(((nat) new O())));
+
+static nat
+  p_match_false = ((nat) unfnbox.apply(mk_match.apply(((bool) new False())))
+                                .apply(((nat) new S(((nat) new O())))));
+
+static nat
+  p_let = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(let(add.apply(((nat) new S(((nat)
+                                           new O())))), f ->
+                                    x -> f.apply(f.apply(((nat) x)))
+                                    ), ((nat)
+                        new O())))).apply(((nat) new O())));
+
+static Function<Object, Object> idf = a -> a
+  ;
+
+static nat
+  p_idf = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(((Function<Object, Object>) idf.apply(succ)), ((nat)
+                        new O())))).apply(((nat) new O())));
+
 }
