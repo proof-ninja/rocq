@@ -1,0 +1,153 @@
+import java.util.function.Function;
+
+class java_cons_fun_field {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+public interface nat {}
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = m -> n ->
+((m instanceof O) ? n
+: (m instanceof S) ? let(((S)m).S0, m$ ->
+                     ((nat) new S(add.apply(m$).apply(n))))
+: error("non-exhaustive match"))
+;
+}
+
+public interface fnbox {}
+public static class MkFnbox implements fnbox {
+  final Function<Object, Object> MkFnbox0;
+  final nat MkFnbox1;
+  
+  MkFnbox(Function<Object, Object> MkFnbox0, nat MkFnbox1) {
+    this.MkFnbox0 = MkFnbox0;
+    this.MkFnbox1 = MkFnbox1;
+    }
+    
+  }
+
+static Function<fnbox, Function<Object, Object>> unfnbox = b ->
+  ((b instanceof MkFnbox) ? let(((MkFnbox)b).MkFnbox0, f -> f)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<nat, nat> succ = x -> ((nat) new S(x))
+  ;
+
+static nat
+  p_glob = ((nat) unfnbox.apply(((fnbox)
+                         new MkFnbox(((Function<Object, Object>) (Object) succ), ((nat)
+                         new O())))).apply(((nat) new O())));
+
+static nat
+  p_lam = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(((Function<Object, Object>) (Object) ((
+                        Function<nat, nat>)(x -> ((nat) new S(x))
+                        ))), ((nat) new O())))).apply(((nat) new O())));
+
+static Function<Function<nat, nat>, fnbox> mk_var = f -> ((fnbox)
+  new MkFnbox(((Function<Object, Object>) (Object) f), ((nat) new O())))
+  ;
+
+static Function<nat, fnbox> mk_app = n -> ((fnbox)
+  new MkFnbox(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
+  new O())))
+  ;
+
+static nat
+  p_var = ((nat) unfnbox.apply(mk_var.apply(succ)).apply(((nat) new O())));
+
+static nat
+  p_app = ((nat) unfnbox.apply(mk_app.apply(((nat) new S(((nat) new O())))))
+                        .apply(((nat) new S(((nat) new O())))));
+
+static Function<Function<Object, Object>, fnbox> mk_poly = f -> ((fnbox)
+  new MkFnbox(f, ((nat) new O())))
+  ;
+
+static nat
+  p_poly = ((nat) unfnbox.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
+                         .apply(((nat) new O())));
+
+static nat
+  p_fun = ((nat) ((Function<Object, Object>) unfnbox.apply(((fnbox)
+                                                    new MkFnbox(((Function<Object, Object>) (Object) ((
+                                                    Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
+                                                    f.apply(f.apply(x))
+                                                    ))), ((nat)
+                                                    new O())))).apply(succ))
+  .apply(((nat) new O())));
+
+public interface bool {}
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+static Function<bool, fnbox> mk_match = b -> ((fnbox)
+  new MkFnbox(((b instanceof True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof False) ? x -> x
+      
+  : error("non-exhaustive match")), ((nat) new O())))
+  ;
+
+static nat
+  p_match_true = ((nat) unfnbox.apply(mk_match.apply(((bool) new True())))
+                               .apply(((nat) new O())));
+
+static nat
+  p_match_false = ((nat) unfnbox.apply(mk_match.apply(((bool) new False())))
+                                .apply(((nat) new S(((nat) new O())))));
+
+static nat
+  p_let = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(let(add.apply(((nat) new S(((nat)
+                                           new O())))), f ->
+                                    x -> f.apply(f.apply(((nat) x)))
+                                    ), ((nat)
+                        new O())))).apply(((nat) new O())));
+
+static Function<Object, Object> idf = a -> a
+  ;
+
+static nat
+  p_idf = ((nat) unfnbox.apply(((fnbox)
+                        new MkFnbox(((Function<Object, Object>) idf.apply(succ)), ((nat)
+                        new O())))).apply(((nat) new O())));
+
+}
