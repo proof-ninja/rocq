@@ -1,25 +1,25 @@
 public class DriverReverse {
   static java_list_reverse.nat intToNat(int n) {
-    java_list_reverse.nat r = new java_list_reverse.O();
+    java_list_reverse.nat r = new java_list_reverse.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_list_reverse.S(r);
+      r = new java_list_reverse.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_list_reverse.nat n) {
     int i = 0;
-    while (n instanceof java_list_reverse.S) {
+    while (n instanceof java_list_reverse.nat.S) {
       i++;
-      n = ((java_list_reverse.S) n).S0;
+      n = ((java_list_reverse.nat.S) n).S0;
     }
     return i;
   }
 
   static java_list_reverse.natlist build(int... xs) {
-    java_list_reverse.natlist l = new java_list_reverse.Nil();
+    java_list_reverse.natlist l = new java_list_reverse.natlist.Nil();
     for (int i = xs.length - 1; i >= 0; i--) {
-      l = new java_list_reverse.Cons(intToNat(xs[i]), l);
+      l = new java_list_reverse.natlist.Cons(intToNat(xs[i]), l);
     }
     return l;
   }
@@ -27,8 +27,8 @@ public class DriverReverse {
   static String show(java_list_reverse.natlist l) {
     StringBuilder sb = new StringBuilder("[");
     boolean first = true;
-    while (l instanceof java_list_reverse.Cons) {
-      java_list_reverse.Cons c = (java_list_reverse.Cons) l;
+    while (l instanceof java_list_reverse.natlist.Cons) {
+      java_list_reverse.natlist.Cons c = (java_list_reverse.natlist.Cons) l;
       if (!first) {
         sb.append("; ");
       }

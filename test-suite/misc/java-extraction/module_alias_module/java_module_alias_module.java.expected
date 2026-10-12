@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface float_class {}
+public interface float_class {
 public static class PNormal implements float_class {
   
   PNormal() {
@@ -76,5 +76,7 @@ public static class NaN implements float_class {
     }
     
   }
+
+}
 
 }

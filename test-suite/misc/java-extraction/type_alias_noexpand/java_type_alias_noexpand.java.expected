@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface list {}
+}
+
+public interface list {
 public static class Nil implements list {
   
   Nil() {
@@ -49,14 +51,16 @@ public static class Cons implements list {
     
   }
 
+}
+
 static Function<Function<nat, nat>, list> singleton_op = f -> ((list)
-  new Cons(f, ((list) new Nil())))
+  new list.Cons(f, ((list) new list.Nil())))
   ;
 
 static Function<list, Function<nat, nat>> apply_head = l -> n ->
-  ((l instanceof Nil) ? n
-  : (l instanceof Cons) ? let(((Function<nat, nat>) ((Cons)l).Cons0), f ->
-                          f.apply(n))
+  ((l instanceof list.Nil) ? n
+  : (l instanceof list.Cons) ? let(((Function<nat, nat>) ((list.Cons)l).Cons0), f ->
+                               f.apply(n))
   : error("non-exhaustive match"))
   ;
 

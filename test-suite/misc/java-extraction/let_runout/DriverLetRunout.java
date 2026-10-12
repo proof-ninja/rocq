@@ -7,8 +7,8 @@ public class DriverLetRunout {
 
   static int toInt(java_let_runout.nat n) {
     int i = 0;
-    while (n instanceof java_let_runout.S) {
-      n = ((java_let_runout.S) n).S0;
+    while (n instanceof java_let_runout.nat.S) {
+      n = ((java_let_runout.nat.S) n).S0;
       i++;
     }
     return i;
@@ -16,9 +16,9 @@ public class DriverLetRunout {
 
   public static void main(String[] args) {
     java_let_runout.nat two =
-        new java_let_runout.S(new java_let_runout.S(new java_let_runout.O()));
+        new java_let_runout.nat.S(new java_let_runout.nat.S(new java_let_runout.nat.O()));
     java.util.function.Function<java_let_runout.nat, java_let_runout.nat> succ =
-        n -> new java_let_runout.S(n);
+        n -> new java_let_runout.nat.S(n);
 
     // let_runout S 2 = add 3 3 = 6
     check("parameter position", toInt(java_let_runout.let_runout.apply(succ).apply(two)) == 6);

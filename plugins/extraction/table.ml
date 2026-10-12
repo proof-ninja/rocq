@@ -433,6 +433,33 @@ let warn_extraction_reserved_identifier =
 
 let warning_id s = warn_extraction_reserved_identifier s
 
+let warn_extraction_java_class_clash =
+  CWarnings.create ~name:"extraction-java-class-clash" ~category:CWarnings.CoreCategories.extraction
+    (fun (r, clash, owner, renamed) ->
+       let because = match owner with
+         | None ->
+           strbrk " clashes with the enclosing top-level class " ++ str clash ++
+           strbrk " (Java forbids a nested class named like an enclosing one)"
+         | Some o ->
+           let from =
+             let o = safe_pr_global o in
+             if String.equal (Pp.string_of_ppcmds o) clash then mt ()
+             else strbrk " extracted from " ++ o
+           in
+           strbrk " clashes up to case with the class " ++ str clash ++ from ++
+           strbrk " (case-insensitive file systems cannot hold class files \
+                    differing only in case)"
+       in
+       let first = match owner with
+         | None -> mt ()
+         | Some _ -> strbrk " The class referenced first keeps its name."
+       in
+       strbrk "The Java class name for " ++ safe_pr_global r ++ because ++
+       strbrk ", so it is renamed to " ++ str renamed ++ str "." ++ first)
+
+let warning_java_class_clash r clash owner renamed =
+  warn_extraction_java_class_clash (r, clash, owner, renamed)
+
 let error_constant ?loc r =
   err ?loc (safe_pr_global r ++ str " is not a constant.")
 

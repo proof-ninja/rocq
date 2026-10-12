@@ -56,6 +56,10 @@ sig
   (** Setters *)
   val set_phase : t -> phase -> t
 
+  (** Java: the name of the top-level class enclosing the extracted code.
+      Nested class names are kept distinct from it. *)
+  val set_java_top_class : t -> string -> unit
+
   (** Reader-like *)
 
   val with_visibility : t -> ModPath.t -> MBId.t list -> (t -> 'a) -> 'a

@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface list {}
+}
+
+public interface list {
 public static class Nil implements list {
   
   Nil() {
@@ -49,13 +51,16 @@ public static class Cons implements list {
     
   }
 
+}
+
 static Function<list, Function<list, list>> app;
 static {
 app = l1 -> l2 ->
-((l1 instanceof Nil) ? l2
-: (l1 instanceof Cons) ? let(((Cons)l1).Cons0, x ->
-                         let(((Cons)l1).Cons1, xs ->
-                         ((list) new Cons(x, app.apply(xs).apply(l2)))))
+((l1 instanceof list.Nil) ? l2
+: (l1 instanceof list.Cons) ? let(((list.Cons)l1).Cons0, x ->
+                              let(((list.Cons)l1).Cons1, xs ->
+                              ((list)
+                              new list.Cons(x, app.apply(xs).apply(l2)))))
 : error("non-exhaustive match"))
 ;
 }
@@ -63,12 +68,12 @@ app = l1 -> l2 ->
 static Function<list, list> reverse;
 static {
 reverse = l ->
-((l instanceof Nil) ? ((list) new Nil())
-: (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
-                        let(((Cons)l).Cons1, xs ->
-                        app.apply(reverse.apply(xs)).apply(((list)
-                                                    new Cons(x, ((list)
-                                                    new Nil()))))))
+((l instanceof list.Nil) ? ((list) new list.Nil())
+: (l instanceof list.Cons) ? let(((list.Cons)l).Cons0, x ->
+                             let(((list.Cons)l).Cons1, xs ->
+                             app.apply(reverse.apply(xs)).apply(((list)
+                                                         new list.Cons(x, ((list)
+                                                         new list.Nil()))))))
 : error("non-exhaustive match"))
 ;
 }

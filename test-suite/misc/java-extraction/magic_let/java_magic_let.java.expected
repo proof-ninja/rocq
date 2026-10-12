@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface bool {}
+}
+
+public interface bool {
 public static class True implements bool {
   
   True() {
@@ -45,17 +47,19 @@ public static class False implements bool {
     
   }
 
+}
+
 static Function<bool, Object> dep_fn2 = b ->
-  ((b instanceof True) ? ((Function<Object, Object>)(x ->
+  ((b instanceof bool.True) ? ((Function<Object, Object>)(x ->
      ((nat)
-     new S(((nat) x)))
+     new nat.S(((nat) x)))
      ))
-  : (b instanceof False) ? ((bool) new True())
+  : (b instanceof bool.False) ? ((bool) new bool.True())
   : error("non-exhaustive match"))
   ;
 
 static Function<nat, nat> indirect = n ->
-  let(dep_fn2.apply(((bool) new True())), f ->
+  let(dep_fn2.apply(((bool) new bool.True())), f ->
   ((nat) ((Function<Object, Object>) f).apply(n)))
   ;
 

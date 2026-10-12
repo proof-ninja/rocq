@@ -1,9 +1,9 @@
 public class DriverMagicCons {
   static int natToInt(java_magic_cons.nat n) {
     int i = 0;
-    while (n instanceof java_magic_cons.S) {
+    while (n instanceof java_magic_cons.nat.S) {
       i++;
-      n = ((java_magic_cons.S) n).S0;
+      n = ((java_magic_cons.nat.S) n).S0;
     }
     return i;
   }

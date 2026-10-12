@@ -7,9 +7,9 @@ public class DriverMatchFailure {
   }
 
   public static void main(String[] args) {
-    assertRotate(new java_match_failure.Red(), java_match_failure.Green.class);
-    assertRotate(new java_match_failure.Green(), java_match_failure.Blue.class);
-    assertRotate(new java_match_failure.Blue(), java_match_failure.Red.class);
+    assertRotate(new java_match_failure.color.Red(), java_match_failure.color.Green.class);
+    assertRotate(new java_match_failure.color.Green(), java_match_failure.color.Blue.class);
+    assertRotate(new java_match_failure.color.Blue(), java_match_failure.color.Red.class);
 
     // A value that fits no constructor of the inductive type must raise the
     // explicit match failure, not an accidental ClassCastException.

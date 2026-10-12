@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface bool {}
+}
+
+public interface bool {
 public static class True implements bool {
   
   True() {
@@ -45,29 +47,32 @@ public static class False implements bool {
     
   }
 
+}
+
 static Function<nat, Function<nat, nat>> add;
 static {
 add = n -> m ->
-((n instanceof O) ? m
-: (n instanceof S) ? let(((S)n).S0, p ->
-                     ((nat) new S(add.apply(p).apply(m))))
+((n instanceof nat.O) ? m
+: (n instanceof nat.S) ? let(((nat.S)n).S0, p ->
+                         ((nat) new nat.S(add.apply(p).apply(m))))
 : error("non-exhaustive match"))
 ;
 }
 
 static Function<bool, Object> dep = b ->
-  ((b instanceof True) ? ((nat) new S(((nat) new O())))
-  : (b instanceof False) ? ((bool) new False())
+  ((b instanceof bool.True) ? ((nat) new nat.S(((nat) new nat.O())))
+  : (b instanceof bool.False) ? ((bool) new bool.False())
   : error("non-exhaustive match"))
   ;
 
 static Function<bool, Object> dep2 = b ->
-  ((b instanceof True) ? add.apply(((nat) dep.apply(((bool) new True()))))
-                            .apply(((nat) new O()))
-  : (b instanceof False) ? ((bool) new False())
+  ((b instanceof bool.True) ? add.apply(((nat) dep.apply(((bool)
+                                                  new bool.True()))))
+                                 .apply(((nat) new nat.O()))
+  : (b instanceof bool.False) ? ((bool) new bool.False())
   : error("non-exhaustive match"))
   ;
 
-static nat result = ((nat) dep2.apply(((bool) new True())));
+static nat result = ((nat) dep2.apply(((bool) new bool.True())));
 
 }

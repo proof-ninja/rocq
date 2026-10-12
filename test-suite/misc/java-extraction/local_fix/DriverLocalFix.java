@@ -1,25 +1,25 @@
 public class DriverLocalFix {
   static java_local_fix.nat intToNat(int n) {
-    java_local_fix.nat r = new java_local_fix.O();
+    java_local_fix.nat r = new java_local_fix.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_local_fix.S(r);
+      r = new java_local_fix.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_local_fix.nat n) {
     int i = 0;
-    while (n instanceof java_local_fix.S) {
+    while (n instanceof java_local_fix.nat.S) {
       i++;
-      n = ((java_local_fix.S) n).S0;
+      n = ((java_local_fix.nat.S) n).S0;
     }
     return i;
   }
 
   static java_local_fix.natlist build(int... xs) {
-    java_local_fix.natlist l = new java_local_fix.Nil();
+    java_local_fix.natlist l = new java_local_fix.natlist.Nil();
     for (int i = xs.length - 1; i >= 0; i--) {
-      l = new java_local_fix.Cons(intToNat(xs[i]), l);
+      l = new java_local_fix.natlist.Cons(intToNat(xs[i]), l);
     }
     return l;
   }
@@ -27,8 +27,8 @@ public class DriverLocalFix {
   static String show(java_local_fix.natlist l) {
     StringBuilder sb = new StringBuilder("[");
     boolean first = true;
-    while (l instanceof java_local_fix.Cons) {
-      java_local_fix.Cons c = (java_local_fix.Cons) l;
+    while (l instanceof java_local_fix.natlist.Cons) {
+      java_local_fix.natlist.Cons c = (java_local_fix.natlist.Cons) l;
       if (!first) {
         sb.append("; ");
       }
@@ -48,8 +48,8 @@ public class DriverLocalFix {
   }
 
   public static void main(String[] args) {
-    assertList("[3; 2; 1]", java_local_fix.rev_acc.apply(build(1, 2, 3)).apply(new java_local_fix.Nil()));
-    assertList("[]", java_local_fix.rev_acc.apply(build()).apply(new java_local_fix.Nil()));
+    assertList("[3; 2; 1]", java_local_fix.rev_acc.apply(build(1, 2, 3)).apply(new java_local_fix.natlist.Nil()));
+    assertList("[]", java_local_fix.rev_acc.apply(build()).apply(new java_local_fix.natlist.Nil()));
     assertList("[4; 5; 6]", java_local_fix.rev_pair.apply(build(4, 5, 6)));
 
     // One argument applied at the call site: fix1. The partial application

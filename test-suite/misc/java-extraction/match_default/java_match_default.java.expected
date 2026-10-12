@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface color {}
+public interface color {
 public static class Red implements color {
   
   Red() {
@@ -35,14 +35,16 @@ public static class Blue implements color {
     
   }
 
+}
+
 static Function<color, color> default_to_red = c ->
-  ((c instanceof Red) ? ((color) new Green())
-  : ((color) new Red()))
+  ((c instanceof color.Red) ? ((color) new color.Green())
+  : ((color) new color.Red()))
   ;
 
 static Function<color, color> normalize = c ->
   (let(default_to_red.apply(c), scrutinee ->
-   (scrutinee instanceof Red) ? ((color) new Green())
+   (scrutinee instanceof color.Red) ? ((color) new color.Green())
    : let(scrutinee, x -> x)))
   ;
 

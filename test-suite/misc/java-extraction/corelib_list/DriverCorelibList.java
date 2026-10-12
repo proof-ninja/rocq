@@ -1,9 +1,9 @@
 public class DriverCorelibList {
   static int natToInt(java_corelib_list.nat n) {
     int i = 0;
-    while (n instanceof java_corelib_list.S) {
+    while (n instanceof java_corelib_list.nat.S) {
       i++;
-      n = ((java_corelib_list.S) n).S0;
+      n = ((java_corelib_list.nat.S) n).S0;
     }
     return i;
   }
@@ -13,8 +13,8 @@ public class DriverCorelibList {
   static String show(java_corelib_list.list l) {
     StringBuilder sb = new StringBuilder("[");
     boolean first = true;
-    while (l instanceof java_corelib_list.Cons) {
-      java_corelib_list.Cons c = (java_corelib_list.Cons) l;
+    while (l instanceof java_corelib_list.list.Cons) {
+      java_corelib_list.list.Cons c = (java_corelib_list.list.Cons) l;
       if (!first) {
         sb.append("; ");
       }
@@ -35,12 +35,12 @@ public class DriverCorelibList {
   public static void main(String[] args) {
     check("doubled", "[1; 2; 1; 2]".equals(show(java_corelib_list.doubled)));
 
-    check("first is Some", java_corelib_list.first instanceof java_corelib_list.Some);
-    check("first value", natToInt((java_corelib_list.nat) ((java_corelib_list.Some) java_corelib_list.first).Some0) == 1);
+    check("first is Some", java_corelib_list.first instanceof java_corelib_list.option.Some);
+    check("first value", natToInt((java_corelib_list.nat) ((java_corelib_list.option.Some) java_corelib_list.first).Some0) == 1);
 
-    check("swapped is Pair", java_corelib_list.swapped instanceof java_corelib_list.Pair);
-    java_corelib_list.Pair p = (java_corelib_list.Pair) java_corelib_list.swapped;
+    check("swapped is Pair", java_corelib_list.swapped instanceof java_corelib_list.prod.Pair);
+    java_corelib_list.prod.Pair p = (java_corelib_list.prod.Pair) java_corelib_list.swapped;
     check("swapped fst", natToInt((java_corelib_list.nat) p.Pair0) == 1);
-    check("swapped snd", p.Pair1 instanceof java_corelib_list.True);
+    check("swapped snd", p.Pair1 instanceof java_corelib_list.bool.True);
   }
 }

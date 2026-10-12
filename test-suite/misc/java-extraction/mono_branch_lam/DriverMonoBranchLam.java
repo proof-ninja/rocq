@@ -1,9 +1,9 @@
 public class DriverMonoBranchLam {
   static int natToInt(java_mono_branch_lam.nat n) {
     int i = 0;
-    while (n instanceof java_mono_branch_lam.S) {
+    while (n instanceof java_mono_branch_lam.nat.S) {
       i++;
-      n = ((java_mono_branch_lam.S) n).S0;
+      n = ((java_mono_branch_lam.nat.S) n).S0;
     }
     return i;
   }

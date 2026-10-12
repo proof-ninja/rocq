@@ -127,7 +127,30 @@ compile_generated_files_together() {
       set -- "$@" "$source"
     fi
   done
-  javac -d "$class_output" "$@"
+  javac_log="$classes_dir/javac.log"
+  if ! javac -J-Duser.language=en -verbose -d "$class_output" "$@" 2> "$javac_log"; then
+    grep -v '^\[' "$javac_log" >&2 || true
+    exit 1
+  fi
+  grep -v '^\[' "$javac_log" >&2 || true
+  check_class_files_case_insensitive "$javac_log"
+}
+
+# javac writes each nested class to its own file, so class files differing only
+# in case would overwrite one another on case-insensitive file systems (macOS,
+# Windows). The check reads the files javac reports writing, rather than those
+# left on disk, so that it holds on any file system.
+check_class_files_case_insensitive() {
+  written=$(sed -n 's/^\[wrote \(.*\)\]$/\1/p' "$1")
+  if [ -z "$written" ]; then
+    printf 'no written class files found in javac -verbose output: %s\n' "$1" >&2
+    exit 1
+  fi
+  clashes=$(printf '%s\n' "$written" | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
+  if [ -n "$clashes" ]; then
+    printf 'class files differing only in case:\n%s\n' "$clashes" >&2
+    exit 1
+  fi
 }
 
 trap cleanup EXIT INT TERM

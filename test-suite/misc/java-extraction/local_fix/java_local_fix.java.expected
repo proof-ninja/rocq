@@ -25,7 +25,7 @@ a2) {
   return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
 }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -42,7 +42,9 @@ public static class S implements nat {
     
   }
 
-public interface natlist {}
+}
+
+public interface natlist {
 public static class Nil implements natlist {
   
   Nil() {
@@ -61,39 +63,45 @@ public static class Cons implements natlist {
     
   }
 
+}
+
 static Function<natlist, Function<natlist, natlist>>
 rev_acc;
 static {
 rev_acc = l -> acc ->
-((l instanceof Nil) ? acc
-: (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
-                        let(((Cons)l).Cons1, xs ->
-                        rev_acc.apply(xs).apply(((natlist) new Cons(x, acc)))))
+((l instanceof natlist.Nil) ? acc
+: (l instanceof natlist.Cons) ? let(((natlist.Cons)l).Cons0, x ->
+                                let(((natlist.Cons)l).Cons1, xs ->
+                                rev_acc.apply(xs).apply(((natlist)
+                                                 new natlist.Cons(x, acc)))))
 : error("non-exhaustive match"))
 ;
 }
 
 static Function<natlist, natlist> rev_pair = l -> fix2(go -> l0 -> acc ->
-  ((l0 instanceof Nil) ? acc
-  : (l0 instanceof Cons) ? let(((Cons)l0).Cons0, x ->
-                           let(((Cons)l0).Cons1, xs ->
-                           go.apply(xs).apply(((natlist) new Cons(x, acc)))))
+  ((l0 instanceof natlist.Nil) ? acc
+  : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons0, x ->
+                                   let(((natlist.Cons)l0).Cons1, xs ->
+                                   go.apply(xs).apply(((natlist)
+                                               new natlist.Cons(x, acc)))))
   : error("non-exhaustive match"))
   , fix2(go -> l0 -> acc ->
-  ((l0 instanceof Nil) ? acc
-  : (l0 instanceof Cons) ? let(((Cons)l0).Cons0, x ->
-                           let(((Cons)l0).Cons1, xs ->
-                           go.apply(xs).apply(((natlist) new Cons(x, acc)))))
+  ((l0 instanceof natlist.Nil) ? acc
+  : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons0, x ->
+                                   let(((natlist.Cons)l0).Cons1, xs ->
+                                   go.apply(xs).apply(((natlist)
+                                               new natlist.Cons(x, acc)))))
   : error("non-exhaustive match"))
-  , l, ((natlist) new Nil())), ((natlist) new Nil()))
+  , l, ((natlist) new natlist.Nil())), ((natlist) new natlist.Nil()))
   ;
 
 static Function<natlist, natlist> rev_onto = fix1(go -> acc -> l ->
-  ((l instanceof Nil) ? acc
-  : (l instanceof Cons) ? let(((Cons)l).Cons0, x ->
-                          let(((Cons)l).Cons1, xs ->
-                          go.apply(((natlist) new Cons(x, acc))).apply(xs)))
+  ((l instanceof natlist.Nil) ? acc
+  : (l instanceof natlist.Cons) ? let(((natlist.Cons)l).Cons0, x ->
+                                  let(((natlist.Cons)l).Cons1, xs ->
+                                  go.apply(((natlist)
+                                    new natlist.Cons(x, acc))).apply(xs)))
   : error("non-exhaustive match"))
-  , ((natlist) new Nil()));
+  , ((natlist) new natlist.Nil()));
 
 }

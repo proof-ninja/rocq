@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,8 +30,10 @@ public static class S implements nat {
     
   }
 
-static nat two = ((nat) new S(((nat) new S(((nat) new O())))));
+}
 
-static nat three = ((nat) new S(two));
+static nat two = ((nat) new nat.S(((nat) new nat.S(((nat) new nat.O())))));
+
+static nat three = ((nat) new nat.S(two));
 
 }

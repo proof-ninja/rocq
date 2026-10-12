@@ -1,17 +1,17 @@
 public class DriverRecord {
   static java_record.nat intToNat(int n) {
-    java_record.nat r = new java_record.O();
+    java_record.nat r = new java_record.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_record.S(r);
+      r = new java_record.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_record.nat n) {
     int i = 0;
-    while (n instanceof java_record.S) {
+    while (n instanceof java_record.nat.S) {
       i++;
-      n = ((java_record.S) n).S0;
+      n = ((java_record.nat.S) n).S0;
     }
     return i;
   }
@@ -28,7 +28,7 @@ public class DriverRecord {
     check("origin px", 0, java_record.getx.apply(java_record.origin));
     check("origin py", 0, java_record.gety.apply(java_record.origin));
 
-    java_record.point p = new java_record.MkPoint(intToNat(1), intToNat(2));
+    java_record.point p = new java_record.point.MkPoint(intToNat(1), intToNat(2));
     check("getx", 1, java_record.getx.apply(p));
     check("gety", 2, java_record.gety.apply(p));
 

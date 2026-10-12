@@ -1,17 +1,17 @@
 public class DriverMagicLet {
   static java_magic_let.nat intToNat(int n) {
-    java_magic_let.nat r = new java_magic_let.O();
+    java_magic_let.nat r = new java_magic_let.nat.O();
     for (int i = 0; i < n; i++) {
-      r = new java_magic_let.S(r);
+      r = new java_magic_let.nat.S(r);
     }
     return r;
   }
 
   static int natToInt(java_magic_let.nat n) {
     int i = 0;
-    while (n instanceof java_magic_let.S) {
+    while (n instanceof java_magic_let.nat.S) {
       i++;
-      n = ((java_magic_let.S) n).S0;
+      n = ((java_magic_let.nat.S) n).S0;
     }
     return i;
   }

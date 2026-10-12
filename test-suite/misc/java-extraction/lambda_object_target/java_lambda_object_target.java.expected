@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,7 +30,9 @@ public static class S implements nat {
     
   }
 
-public interface prod {}
+}
+
+public interface prod {
 public static class Pair implements prod {
   final Object Pair0;
   final Object Pair1;
@@ -42,33 +44,35 @@ public static class Pair implements prod {
     
   }
 
+}
+
 static Function<prod, Object> fst = p ->
-  ((p instanceof Pair) ? let(((Pair)p).Pair0, a -> a)
+  ((p instanceof prod.Pair) ? let(((prod.Pair)p).Pair0, a -> a)
   : error("non-exhaustive match"))
   ;
 
 static Function<Object, Object> idf = a -> a
   ;
 
-static prod pair_fun = ((prod) new Pair(((Function<nat, nat>)(x -> ((nat)
-  new S(x))
-  )), ((nat) new O())));
+static prod pair_fun = ((prod) new prod.Pair(((Function<nat, nat>)(x ->
+  ((nat) new nat.S(x))
+  )), ((nat) new nat.O())));
 
 static nat
   use_pair_fun = ((nat) ((Function<Object, Object>) fst.apply(pair_fun))
-  .apply(((nat) new O())));
+  .apply(((nat) new nat.O())));
 
 static Function<nat, nat> let_fun = n ->
   let(((Function<Object, Object>)(x ->
   ((nat)
-  new S(((nat) x)))
+  new nat.S(((nat) x)))
   )), f ->
   ((nat) f.apply(f.apply(n))))
   ;
 
 static Function<nat, nat> apply_idf = n ->
   ((nat) ((Function<Object, Object>) idf.apply(((Function<Object, Object>)(x ->
-                                        ((nat) new S(((nat) x)))
+                                        ((nat) new nat.S(((nat) x)))
                                         )))).apply(n))
   ;
 
@@ -77,18 +81,18 @@ static Function<nat, nat> over_idf = n ->
                                                                     Function<Object, Object>)(f ->
                                                                     f
                                                                     ))))
-  .apply(((Function<Object, Object>)(x -> ((nat) new S(((nat) x)))
+  .apply(((Function<Object, Object>)(x -> ((nat) new nat.S(((nat) x)))
   )))).apply(n))
   ;
 
 static Function<Object, prod> pair_id = a -> ((prod)
-  new Pair(((Function<Object, Object>)(x -> x
+  new prod.Pair(((Function<Object, Object>)(x -> x
   )), a))
   ;
 
 static Function<nat, nat> use_pair_id = n ->
   ((nat) ((Function<Object, Object>) fst.apply(pair_id.apply(n))).apply(((nat)
-                                                                 new S(n))))
+                                                                 new nat.S(n))))
   ;
 
 }
