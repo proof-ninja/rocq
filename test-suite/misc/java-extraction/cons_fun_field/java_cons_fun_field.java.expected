@@ -42,22 +42,22 @@ add = m -> n ->
 ;
 }
 
-public interface fnbox {
-public static class MkFnbox implements fnbox {
-  final Function<Object, Object> MkFnbox0;
-  final nat MkFnbox1;
+public interface box2 {
+public static class Box2 implements box2 {
+  final Function<Object, Object> Box20;
+  final nat Box21;
   
-  MkFnbox(Function<Object, Object> MkFnbox0, nat MkFnbox1) {
-    this.MkFnbox0 = MkFnbox0;
-    this.MkFnbox1 = MkFnbox1;
+  Box2(Function<Object, Object> Box20, nat Box21) {
+    this.Box20 = Box20;
+    this.Box21 = Box21;
     }
     
   }
 
 }
 
-static Function<fnbox, Function<Object, Object>> unfnbox = b ->
-  ((b instanceof fnbox.MkFnbox) ? let(((fnbox.MkFnbox)b).MkFnbox0, f -> f)
+static Function<box2, Function<Object, Object>> unbox2 = b ->
+  ((b instanceof box2.Box2) ? let(((box2.Box2)b).Box20, f -> f)
   : error("non-exhaustive match"))
   ;
 
@@ -65,53 +65,51 @@ static Function<nat, nat> succ = x -> ((nat) new nat.S(x))
   ;
 
 static nat
-  p_glob = ((nat) unfnbox.apply(((fnbox)
-                         new fnbox.MkFnbox(((Function<Object, Object>) (Object) succ), ((nat)
-                         new nat.O())))).apply(((nat) new nat.O())));
-
-static nat
-  p_lam = ((nat) unfnbox.apply(((fnbox)
-                        new fnbox.MkFnbox(((Function<Object, Object>) (Object) ((
-                        Function<nat, nat>)(x -> ((nat)
-                        new nat.S(x))
-                        ))), ((nat)
+  p_glob = ((nat) unbox2.apply(((box2)
+                        new box2.Box2(((Function<Object, Object>) (Object) succ), ((nat)
                         new nat.O())))).apply(((nat) new nat.O())));
 
-static Function<Function<nat, nat>, fnbox> mk_var = f -> ((fnbox)
-  new fnbox.MkFnbox(((Function<Object, Object>) (Object) f), ((nat)
+static nat
+  p_lam = ((nat) unbox2.apply(((box2)
+                       new box2.Box2(((Function<Object, Object>) (Object) ((
+                       Function<nat, nat>)(x -> ((nat)
+                       new nat.S(x))
+                       ))), ((nat) new nat.O())))).apply(((nat) new nat.O())));
+
+static Function<Function<nat, nat>, box2> mk_var = f -> ((box2)
+  new box2.Box2(((Function<Object, Object>) (Object) f), ((nat)
   new nat.O())))
   ;
 
-static Function<nat, fnbox> mk_app = n -> ((fnbox)
-  new fnbox.MkFnbox(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
+static Function<nat, box2> mk_app = n -> ((box2)
+  new box2.Box2(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
   new nat.O())))
   ;
 
 static nat
-  p_var = ((nat) unfnbox.apply(mk_var.apply(succ)).apply(((nat) new nat.O())));
+  p_var = ((nat) unbox2.apply(mk_var.apply(succ)).apply(((nat) new nat.O())));
 
 static nat
-  p_app = ((nat) unfnbox.apply(mk_app.apply(((nat) new nat.S(((nat)
-                                     new nat.O()))))).apply(((nat)
-                                                     new nat.S(((nat)
-                                                     new nat.O())))));
+  p_app = ((nat) unbox2.apply(mk_app.apply(((nat) new nat.S(((nat)
+                                    new nat.O()))))).apply(((nat)
+                                                    new nat.S(((nat)
+                                                    new nat.O())))));
 
-static Function<Function<Object, Object>, fnbox> mk_poly = f -> ((fnbox)
-  new fnbox.MkFnbox(f, ((nat) new nat.O())))
+static Function<Function<Object, Object>, box2> mk_poly = f -> ((box2)
+  new box2.Box2(f, ((nat) new nat.O())))
   ;
 
 static nat
-  p_poly = ((nat) unfnbox.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
-                         .apply(((nat) new nat.O())));
+  p_poly = ((nat) unbox2.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
+                        .apply(((nat) new nat.O())));
 
 static nat
-  p_fun = ((nat) ((Function<Object, Object>) unfnbox.apply(((fnbox)
-                                                    new fnbox.MkFnbox(((
-                                                    Function<Object, Object>) (Object) ((
-                                                    Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
-                                                    f.apply(f.apply(x))
-                                                    ))), ((nat)
-                                                    new nat.O())))).apply(succ))
+  p_fun = ((nat) ((Function<Object, Object>) unbox2.apply(((box2)
+                                                   new box2.Box2(((Function<Object, Object>) (Object) ((
+                                                   Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
+                                                   f.apply(f.apply(x))
+                                                   ))), ((nat)
+                                                   new nat.O())))).apply(succ))
   .apply(((nat) new nat.O())));
 
 public interface bool {
@@ -131,58 +129,55 @@ public static class False implements bool {
 
 }
 
-static Function<bool, fnbox> mk_match = b -> ((fnbox)
-  new fnbox.MkFnbox(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+static Function<bool, box2> mk_match = b -> ((box2)
+  new box2.Box2(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
   : (b instanceof bool.False) ? x -> x
       
   : error("non-exhaustive match")), ((nat) new nat.O())))
   ;
 
 static nat
-  p_match_true = ((nat) unfnbox.apply(mk_match.apply(((bool)
-                                              new bool.True()))).apply(((nat)
-                                                                new nat.O())));
+  p_match_true = ((nat) unbox2.apply(mk_match.apply(((bool) new bool.True())))
+                              .apply(((nat) new nat.O())));
 
 static nat
-  p_match_false = ((nat) unfnbox.apply(mk_match.apply(((bool)
-                                               new bool.False()))).apply(((nat)
-                                                                  new nat.S(((nat)
-                                                                  new nat.O())))));
+  p_match_false = ((nat) unbox2.apply(mk_match.apply(((bool)
+                                              new bool.False()))).apply(((nat)
+                                                                 new nat.S(((nat)
+                                                                 new nat.O())))));
 
-static Function<bool, fnbox> mk_match_use = b -> ((fnbox)
-  new fnbox.MkFnbox(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+static Function<bool, box2> mk_match_use = b -> ((box2)
+  new box2.Box2(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
   : (b instanceof bool.False) ? x -> add.apply(((nat) x)).apply(((nat) x))
       
   : error("non-exhaustive match")), ((nat) new nat.O())))
   ;
 
 static nat
-  p_match_use = ((nat) unfnbox.apply(mk_match_use.apply(((bool)
-                                                 new bool.False()))).apply(((nat)
-                                                                    new nat.S(((nat)
-                                                                    new nat.S(((nat)
-                                                                    new nat.O())))))));
+  p_match_use = ((nat) unbox2.apply(mk_match_use.apply(((bool)
+                                                new bool.False()))).apply(((nat)
+                                                                   new nat.S(((nat)
+                                                                   new nat.S(((nat)
+                                                                   new nat.O())))))));
 
 static nat
-  p_let = ((nat) unfnbox.apply(((fnbox)
-                        new fnbox.MkFnbox(let(add.apply(((nat)
-                                                 new nat.S(((nat)
-                                                 new nat.O())))), f ->
-                                          x -> f.apply(f.apply(((nat) x)))
-                                          ), ((nat)
-                        new nat.O())))).apply(((nat) new nat.O())));
+  p_let = ((nat) unbox2.apply(((box2)
+                       new box2.Box2(let(add.apply(((nat) new nat.S(((nat)
+                                            new nat.O())))), f ->
+                                     x -> f.apply(f.apply(((nat) x)))
+                                     ), ((nat)
+                       new nat.O())))).apply(((nat) new nat.O())));
 
 static Function<Object, Object> idf = a -> a
   ;
 
 static nat
-  p_idf = ((nat) unfnbox.apply(((fnbox)
-                        new fnbox.MkFnbox(((Function<Object, Object>) idf
-                        .apply(succ)), ((nat)
-                        new nat.O())))).apply(((nat) new nat.O())));
+  p_idf = ((nat) unbox2.apply(((box2)
+                       new box2.Box2(((Function<Object, Object>) idf.apply(succ)), ((nat)
+                       new nat.O())))).apply(((nat) new nat.O())));
 
-static Function<bool, fnbox> mk_hoist = b -> ((fnbox)
-  new fnbox.MkFnbox(((Function<Object, Object>) (Object) ((Function<Function<nat, nat>, Function<nat, nat>>)(f ->
+static Function<bool, box2> mk_hoist = b -> ((box2)
+  new box2.Box2(((Function<Object, Object>) (Object) ((Function<Function<nat, nat>, Function<nat, nat>>)(f ->
   ((b instanceof bool.True) ? f
   : (b instanceof bool.False) ? x -> f.apply(f.apply(x))
       
@@ -191,10 +186,9 @@ static Function<bool, fnbox> mk_hoist = b -> ((fnbox)
   ;
 
 static nat
-  p_hoist = ((nat) ((Function<Object, Object>) unfnbox.apply(mk_hoist
-                                                      .apply(((bool)
-                                                      new bool.False())))
-                                                      .apply(succ)).apply(((nat)
-                                                                   new nat.O())));
+  p_hoist = ((nat) ((Function<Object, Object>) unbox2.apply(mk_hoist.apply(((bool)
+                                                                    new bool.False())))
+                                                     .apply(succ)).apply(((nat)
+                                                                  new nat.O())));
 
 }
