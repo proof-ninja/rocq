@@ -31,9 +31,14 @@ public class DriverConsFunField {
     check("match branch (global)", toInt(java_cons_fun_field.p_match_true) == 1);
     // p_match_false = (fun x => x) (S O) = 1
     check("match branch (lambda)", toInt(java_cons_fun_field.p_match_false) == 1);
+    // p_match_use = add 2 2 = 4
+    check("match branch (lambda using its parameter)",
+          toInt(java_cons_fun_field.p_match_use) == 4);
     // p_let = add 1 (add 1 O) = 2
     check("let body", toInt(java_cons_fun_field.p_let) == 2);
     // p_idf = succ O = 1
     check("polymorphic application", toInt(java_cons_fun_field.p_idf) == 1);
+    // p_hoist = succ (succ O) = 2
+    check("lambda hoisted out of a match", toInt(java_cons_fun_field.p_hoist) == 2);
   }
 }

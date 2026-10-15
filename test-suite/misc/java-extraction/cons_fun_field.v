@@ -51,6 +51,12 @@ Definition mk_match (b : bool) : fnbox nat :=
   MkFnbox (match b with true => succ | false => fun x => x end) O.
 Definition p_match_true : nat := unfnbox (mk_match true) O.
 Definition p_match_false : nat := unfnbox (mk_match false) (S O).
+(* The branch lambda's [Object] parameter is cast where the body uses it
+   at [nat]: the match-branch counterpart of [p_let]. A match whose
+   branches all start with a lambda would not exercise this (see 8). *)
+Definition mk_match_use (b : bool) : fnbox nat :=
+  MkFnbox (match b with true => succ | false => fun x => add x x end) O.
+Definition p_match_use : nat := unfnbox (mk_match_use false) (S (S O)).
 Definition p_let : nat :=
   unfnbox (MkFnbox (let f := add (S O) in fun x => f (f x)) O) O.
 
@@ -59,5 +65,15 @@ Definition p_let : nat :=
 Definition idf {A : Type} (a : A) : A := a.
 Definition p_idf : nat := unfnbox (MkFnbox (idf succ) O) O.
 
+(* 8. Every branch starts with a lambda: the extractor hoists the shared
+   parameter out of the match, so the field receives a bare lambda whose
+   body is a match with a lambda in one branch. The outer lambda keeps the
+   instantiated type as its target and the branch lambda is typed through
+   it. *)
+Definition mk_hoist (b : bool) : fnbox (nat -> nat) :=
+  MkFnbox (match b with true => fun f => f | false => fun f x => f (f x) end) O.
+Definition p_hoist : nat := unfnbox (mk_hoist false) succ O.
+
 Extraction "java_cons_fun_field.java"
-  p_glob p_lam p_var p_app p_poly p_fun p_match_true p_match_false p_let p_idf.
+  p_glob p_lam p_var p_app p_poly p_fun p_match_true p_match_false p_match_use
+  p_let p_idf p_hoist.

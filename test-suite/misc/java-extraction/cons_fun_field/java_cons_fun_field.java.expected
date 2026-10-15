@@ -149,6 +149,20 @@ static nat
                                                                   new nat.S(((nat)
                                                                   new nat.O())))));
 
+static Function<bool, fnbox> mk_match_use = b -> ((fnbox)
+  new fnbox.MkFnbox(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof bool.False) ? x -> add.apply(((nat) x)).apply(((nat) x))
+      
+  : error("non-exhaustive match")), ((nat) new nat.O())))
+  ;
+
+static nat
+  p_match_use = ((nat) unfnbox.apply(mk_match_use.apply(((bool)
+                                                 new bool.False()))).apply(((nat)
+                                                                    new nat.S(((nat)
+                                                                    new nat.S(((nat)
+                                                                    new nat.O())))))));
+
 static nat
   p_let = ((nat) unfnbox.apply(((fnbox)
                         new fnbox.MkFnbox(let(add.apply(((nat)
@@ -166,5 +180,21 @@ static nat
                         new fnbox.MkFnbox(((Function<Object, Object>) idf
                         .apply(succ)), ((nat)
                         new nat.O())))).apply(((nat) new nat.O())));
+
+static Function<bool, fnbox> mk_hoist = b -> ((fnbox)
+  new fnbox.MkFnbox(((Function<Object, Object>) (Object) ((Function<Function<nat, nat>, Function<nat, nat>>)(f ->
+  ((b instanceof bool.True) ? f
+  : (b instanceof bool.False) ? x -> f.apply(f.apply(x))
+      
+  : error("non-exhaustive match"))
+  ))), ((nat) new nat.O())))
+  ;
+
+static nat
+  p_hoist = ((nat) ((Function<Object, Object>) unfnbox.apply(mk_hoist
+                                                      .apply(((bool)
+                                                      new bool.False())))
+                                                      .apply(succ)).apply(((nat)
+                                                                   new nat.O())));
 
 }
