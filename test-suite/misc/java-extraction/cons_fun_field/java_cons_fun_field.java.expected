@@ -13,7 +13,7 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
-public interface nat {}
+public interface nat {
 public static class O implements nat {
   
   O() {
@@ -30,17 +30,19 @@ public static class S implements nat {
     
   }
 
+}
+
 static Function<nat, Function<nat, nat>> add;
 static {
 add = m -> n ->
-((m instanceof O) ? n
-: (m instanceof S) ? let(((S)m).S0, m$ ->
-                     ((nat) new S(add.apply(m$).apply(n))))
+((m instanceof nat.O) ? n
+: (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                         ((nat) new nat.S(add.apply(m$).apply(n))))
 : error("non-exhaustive match"))
 ;
 }
 
-public interface fnbox {}
+public interface fnbox {
 public static class MkFnbox implements fnbox {
   final Function<Object, Object> MkFnbox0;
   final nat MkFnbox1;
@@ -52,59 +54,67 @@ public static class MkFnbox implements fnbox {
     
   }
 
+}
+
 static Function<fnbox, Function<Object, Object>> unfnbox = b ->
-  ((b instanceof MkFnbox) ? let(((MkFnbox)b).MkFnbox0, f -> f)
+  ((b instanceof fnbox.MkFnbox) ? let(((fnbox.MkFnbox)b).MkFnbox0, f -> f)
   : error("non-exhaustive match"))
   ;
 
-static Function<nat, nat> succ = x -> ((nat) new S(x))
+static Function<nat, nat> succ = x -> ((nat) new nat.S(x))
   ;
 
 static nat
   p_glob = ((nat) unfnbox.apply(((fnbox)
-                         new MkFnbox(((Function<Object, Object>) (Object) succ), ((nat)
-                         new O())))).apply(((nat) new O())));
+                         new fnbox.MkFnbox(((Function<Object, Object>) (Object) succ), ((nat)
+                         new nat.O())))).apply(((nat) new nat.O())));
 
 static nat
   p_lam = ((nat) unfnbox.apply(((fnbox)
-                        new MkFnbox(((Function<Object, Object>) (Object) ((
-                        Function<nat, nat>)(x -> ((nat) new S(x))
-                        ))), ((nat) new O())))).apply(((nat) new O())));
+                        new fnbox.MkFnbox(((Function<Object, Object>) (Object) ((
+                        Function<nat, nat>)(x -> ((nat)
+                        new nat.S(x))
+                        ))), ((nat)
+                        new nat.O())))).apply(((nat) new nat.O())));
 
 static Function<Function<nat, nat>, fnbox> mk_var = f -> ((fnbox)
-  new MkFnbox(((Function<Object, Object>) (Object) f), ((nat) new O())))
+  new fnbox.MkFnbox(((Function<Object, Object>) (Object) f), ((nat)
+  new nat.O())))
   ;
 
 static Function<nat, fnbox> mk_app = n -> ((fnbox)
-  new MkFnbox(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
-  new O())))
+  new fnbox.MkFnbox(((Function<Object, Object>) (Object) add.apply(n)), ((nat)
+  new nat.O())))
   ;
 
 static nat
-  p_var = ((nat) unfnbox.apply(mk_var.apply(succ)).apply(((nat) new O())));
+  p_var = ((nat) unfnbox.apply(mk_var.apply(succ)).apply(((nat) new nat.O())));
 
 static nat
-  p_app = ((nat) unfnbox.apply(mk_app.apply(((nat) new S(((nat) new O())))))
-                        .apply(((nat) new S(((nat) new O())))));
+  p_app = ((nat) unfnbox.apply(mk_app.apply(((nat) new nat.S(((nat)
+                                     new nat.O()))))).apply(((nat)
+                                                     new nat.S(((nat)
+                                                     new nat.O())))));
 
 static Function<Function<Object, Object>, fnbox> mk_poly = f -> ((fnbox)
-  new MkFnbox(f, ((nat) new O())))
+  new fnbox.MkFnbox(f, ((nat) new nat.O())))
   ;
 
 static nat
   p_poly = ((nat) unfnbox.apply(mk_poly.apply(((Function<Object, Object>) (Object) succ)))
-                         .apply(((nat) new O())));
+                         .apply(((nat) new nat.O())));
 
 static nat
   p_fun = ((nat) ((Function<Object, Object>) unfnbox.apply(((fnbox)
-                                                    new MkFnbox(((Function<Object, Object>) (Object) ((
+                                                    new fnbox.MkFnbox(((
+                                                    Function<Object, Object>) (Object) ((
                                                     Function<Function<nat, nat>, Function<nat, nat>>)(f -> x ->
                                                     f.apply(f.apply(x))
                                                     ))), ((nat)
-                                                    new O())))).apply(succ))
-  .apply(((nat) new O())));
+                                                    new nat.O())))).apply(succ))
+  .apply(((nat) new nat.O())));
 
-public interface bool {}
+public interface bool {
 public static class True implements bool {
   
   True() {
@@ -119,35 +129,42 @@ public static class False implements bool {
     
   }
 
+}
+
 static Function<bool, fnbox> mk_match = b -> ((fnbox)
-  new MkFnbox(((b instanceof True) ? ((Function<Object, Object>) (Object) succ)
-  : (b instanceof False) ? x -> x
+  new fnbox.MkFnbox(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof bool.False) ? x -> x
       
-  : error("non-exhaustive match")), ((nat) new O())))
+  : error("non-exhaustive match")), ((nat) new nat.O())))
   ;
 
 static nat
-  p_match_true = ((nat) unfnbox.apply(mk_match.apply(((bool) new True())))
-                               .apply(((nat) new O())));
+  p_match_true = ((nat) unfnbox.apply(mk_match.apply(((bool)
+                                              new bool.True()))).apply(((nat)
+                                                                new nat.O())));
 
 static nat
-  p_match_false = ((nat) unfnbox.apply(mk_match.apply(((bool) new False())))
-                                .apply(((nat) new S(((nat) new O())))));
+  p_match_false = ((nat) unfnbox.apply(mk_match.apply(((bool)
+                                               new bool.False()))).apply(((nat)
+                                                                  new nat.S(((nat)
+                                                                  new nat.O())))));
 
 static nat
   p_let = ((nat) unfnbox.apply(((fnbox)
-                        new MkFnbox(let(add.apply(((nat) new S(((nat)
-                                           new O())))), f ->
-                                    x -> f.apply(f.apply(((nat) x)))
-                                    ), ((nat)
-                        new O())))).apply(((nat) new O())));
+                        new fnbox.MkFnbox(let(add.apply(((nat)
+                                                 new nat.S(((nat)
+                                                 new nat.O())))), f ->
+                                          x -> f.apply(f.apply(((nat) x)))
+                                          ), ((nat)
+                        new nat.O())))).apply(((nat) new nat.O())));
 
 static Function<Object, Object> idf = a -> a
   ;
 
 static nat
   p_idf = ((nat) unfnbox.apply(((fnbox)
-                        new MkFnbox(((Function<Object, Object>) idf.apply(succ)), ((nat)
-                        new O())))).apply(((nat) new O())));
+                        new fnbox.MkFnbox(((Function<Object, Object>) idf
+                        .apply(succ)), ((nat)
+                        new nat.O())))).apply(((nat) new nat.O())));
 
 }

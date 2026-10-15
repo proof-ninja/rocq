@@ -7,8 +7,8 @@ public class DriverConsFunField {
 
   static int toInt(java_cons_fun_field.nat n) {
     int i = 0;
-    while (n instanceof java_cons_fun_field.S) {
-      n = ((java_cons_fun_field.S) n).S0;
+    while (n instanceof java_cons_fun_field.nat.S) {
+      n = ((java_cons_fun_field.nat.S) n).S0;
       i++;
     }
     return i;
