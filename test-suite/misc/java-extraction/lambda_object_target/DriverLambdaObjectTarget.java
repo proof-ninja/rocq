@@ -49,6 +49,44 @@ public class DriverLambdaObjectTarget {
     check("let value: fix-headed inner let (false)",
         toInt(java_lambda_object_target.let_fix_match.apply(
             new java_lambda_object_target.bool.False()).apply(one)) == 4);
+    // unknown_leaf true true 1 = succ (succ (succ 1)) = 4
+    check("let value: unknown-typed branch (true, true)",
+        toInt(java_lambda_object_target.unknown_leaf.apply(
+            new java_lambda_object_target.bool.True()).apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 4);
+    // unknown_leaf false true 1 = pred (pred (pred 1)) = 0
+    check("let value: unknown-typed branch (false, true)",
+        toInt(java_lambda_object_target.unknown_leaf.apply(
+            new java_lambda_object_target.bool.False()).apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 0);
+    // unknown_leaf true false 1 = succ 1 = 2
+    check("let value: unknown-typed branch (true, false)",
+        toInt(java_lambda_object_target.unknown_leaf.apply(
+            new java_lambda_object_target.bool.True()).apply(
+            new java_lambda_object_target.bool.False()).apply(one)) == 2);
+    // unknown_app true true 1 = add 1 (add 1 (add 1 1)) = 4
+    check("let value: unknown-typed application (true, true)",
+        toInt(java_lambda_object_target.unknown_app.apply(
+            new java_lambda_object_target.bool.True()).apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 4);
+    // unknown_app false true 1: h 1 1 = 3, then x + 2 twice = 7
+    check("let value: unknown-typed application (false, true)",
+        toInt(java_lambda_object_target.unknown_app.apply(
+            new java_lambda_object_target.bool.False()).apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 7);
+    // unknown_app true false 1 = add 1 1 = 2
+    check("let value: unknown-typed application (true, false)",
+        toInt(java_lambda_object_target.unknown_app.apply(
+            new java_lambda_object_target.bool.True()).apply(
+            new java_lambda_object_target.bool.False()).apply(one)) == 2);
+    // let_match_scrut true 1 = 1 (neg true = false)
+    check("let value: compound scrutinee (true)",
+        toInt(java_lambda_object_target.let_match_scrut.apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 1);
+    // let_match_scrut false 1 = succ (succ 1) = 3
+    check("let value: compound scrutinee (false)",
+        toInt(java_lambda_object_target.let_match_scrut.apply(
+            new java_lambda_object_target.bool.False()).apply(one)) == 3);
     // apply_idf 1 = S 1
     check("polymorphic parameter", toInt(java_lambda_object_target.apply_idf.apply(one)) == 2);
     // over_idf 1 = (fun f x => f x) (fun x => S x) 1 = S 1

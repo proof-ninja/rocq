@@ -77,6 +77,30 @@ Definition let_fix_match (b : bool) (n : nat) : nat :=
     match b with true => succ | false => fun x => succ (g (S n)) end
   in f (f n).
 
+(* 2e. A tail value whose type the printer cannot tell (here [g], bound
+   to a match) is bridged too, through [(Object)]: its Java static type
+   is the one javac infers for the inner [let], not [Object]. *)
+Definition pred (x : nat) : nat := match x with O => O | S y => y end.
+Definition unknown_leaf (c b : bool) (n : nat) : nat :=
+  let g := match c with true => succ | false => pred end in
+  let f := match b with true => g | false => fun x => x end in
+  f (f (g n)).
+
+(* 2f. The same for an application whose head's type is unknown and
+   which returns a function. *)
+Definition twice_add (m n : nat) : nat := add m (add m n).
+Definition unknown_app (c b : bool) (n : nat) : nat :=
+  let h := match c with true => add | false => twice_add end in
+  let f := match b with true => h n | false => fun x => x end in
+  f (f (h n n)).
+
+(* 2g. A scrutinee that is not a variable: the conditional chain is
+   wrapped in a [let] of its own, inside the value of the outer one. *)
+Definition neg (b : bool) : bool := match b with true => false | false => true end.
+Definition let_match_scrut (b : bool) (n : nat) : nat :=
+  let f := match neg b with true => succ | false => fun x => x end in f (f n).
+
 Extraction "java_lambda_object_target.java"
   use_pair_fun let_fun let_match let_match_arity let_fix_match
+  unknown_leaf unknown_app let_match_scrut
   apply_idf over_idf use_pair_id.

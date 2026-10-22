@@ -191,4 +191,55 @@ static Function<bool, Function<nat, nat>> let_fix_match = b -> n ->
   ((nat) f.apply(f.apply(n))))
   ;
 
+static Function<nat, nat> pred = x ->
+  ((x instanceof nat.O) ? ((nat) new nat.O())
+  : (x instanceof nat.S) ? let(((nat.S)x).S0, y -> y)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<bool, Function<bool, Function<nat, nat>>>
+  unknown_leaf = c -> b -> n ->
+  let(((c instanceof bool.True) ? succ
+  : (c instanceof bool.False) ? pred
+  : error("non-exhaustive match")), g ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) g)
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(x -> x
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(g.apply(n))))))
+  ;
+
+static Function<nat, Function<nat, nat>> twice_add = m -> n ->
+  add.apply(m).apply(add.apply(m).apply(n))
+  ;
+
+static Function<bool, Function<bool, Function<nat, nat>>>
+  unknown_app = c -> b -> n ->
+  let(((c instanceof bool.True) ? add
+  : (c instanceof bool.False) ? twice_add
+  : error("non-exhaustive match")), h ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) h
+         .apply(n))
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(x -> x
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(h.apply(n).apply(n))))))
+  ;
+
+static Function<bool, bool> neg = b ->
+  ((b instanceof bool.True) ? ((bool) new bool.False())
+  : (b instanceof bool.False) ? ((bool) new bool.True())
+  : error("non-exhaustive match"))
+  ;
+
+static Function<bool, Function<nat, nat>> let_match_scrut = b -> n ->
+  let((let(neg.apply(b), scrutinee ->
+       (scrutinee instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+       : (scrutinee instanceof bool.False) ? ((Function<Object, Object>)(x ->
+           x
+           ))
+       : error("non-exhaustive match"))), f ->
+  ((nat) f.apply(f.apply(n))))
+  ;
+
 }

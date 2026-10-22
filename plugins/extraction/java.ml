@@ -427,7 +427,8 @@ let rec type_of_expr tenv = function
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
    would sprinkle casts over monomorphic code (whose output must not
-   change), and a missing cast at worst fails javac. When the actual type
+   change), and a missing cast at worst fails javac. (The one exception
+   is a tail value under [self_target], see [pp_expr].) When the actual type
    is known and is not [Object], the cast goes through [(Object)] first:
    a direct cast between two distinct parameterized types (e.g. two
    [Function] shapes) would be rejected as inconvertible. *)
@@ -484,7 +485,9 @@ let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
    offers the branch lambda none either. The lambdas share one ML type,
    so their arities differ only where a shorter one returns a function;
    the common target is built from the shortest and the others are
-   bridged to it. *)
+   bridged to it. The positions searched here are the ones [pp_expr]
+   forwards [self_target] to, except the head of an application, which
+   holds no tail lambda; keep the two in sync. *)
 let rec tail_lambda_arities a = match a with
   | MLlam _ -> [lambda_arity a]
   | MLmagic a | MLletin (_, _, a) -> tail_lambda_arities a
@@ -501,15 +504,22 @@ let pp_lambda_target table fn_ty lam =
    even where [expected] has arrows: a lambda in tail position must then
    cast itself to its function type, and every other tail value is
    bridged to [expected] by the leaf cases, so that the operands of a
-   conditional chain agree. It follows [expected] into tail positions and
-   is off everywhere else. *)
+   conditional chain agree. A leaf whose type is unknown is bridged too,
+   through [(Object)]: its Java static type may be a function type the
+   printer cannot see (a variable bound to a match). It follows
+   [expected] into tail positions (the ones [tail_lambda_arities]
+   searches, and the head of an application, whose result is the tail
+   value) and is off everywhere else. *)
 let rec pp_expr ?(self_target=false) table env tenv expected args =
   let apply st = pp_app st args in
   let apply_cast head_ty st =
     let n = List.length args in
-    match head_ty with
-    | None -> pp_app st args
-    | Some t ->
+    match head_ty, expected with
+    | None, Some ety when self_target && not (erases_to_object ety) ->
+        paren (paren (pp_type table (erase_type ety)) ++ str " (Object) "
+               ++ pp_app st args)
+    | None, _ -> pp_app st args
+    | Some t, _ ->
         let avail = arrows_upto t n in
         if Int.equal avail n then
           pp_cast table ~expected ~actual:(strip_arrows t n) (pp_app st args)
@@ -553,7 +563,7 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
         let stl =
           List.map2 (fun a ety -> pp_expr table env tenv ety [] a) args' arg_tys
         in
-        pp_expr table env tenv expected (stl @ args) f
+        pp_expr ~self_target table env tenv expected (stl @ args) f
     | MLlam _ as a ->
         let fl,a' = collect_lams a in (* [fl] : arguments, [a'] : body *)
         (* [fl] lists binders innermost first; [peel_lams] returns argument
@@ -595,6 +605,8 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
            used more than once below, this substitution duplicates the
            recursive computation itself — it will be re-executed once per
            use, not just re-printed as source text. *)
+        (* [tail_lambda_arities] looks at [a2] before this substitution and
+           [self_target] reaches it after; the tail positions are the same. *)
         if is_fix_head a1 then
           pp_expr ~self_target table env tenv expected args (ast_subst a1 a2)
         else
