@@ -18,11 +18,29 @@ a1) {
   return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
 }
 
-static <A1, A2, R>
-R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
-a1, A2
-a2) {
-  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+static abstract class $Step2<A1, A2, R> {}
+static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final R value;
+  $Done2(R value) { this.value = value; }
+}
+static final class $Next2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final A1 a1; final A2 a2;
+  $Next2(A1 a1, A2 a2) { this.a1 = a1; this.a2 = a2; }
+}
+static <A1, A2, R> $Step2<A1, A2, R> $done2(R value) { return new $Done2<>(value); }
+static <A1, A2, R> $Step2<A1, A2, R> $next2(A1 a1, A2 a2) { return new $Next2<>(a1, a2); }
+static <A1, A2, R> R $run2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body, A1 a1, A2 a2) {
+  while (true) {
+    $Step2<A1, A2, R> s = body.apply(a1).apply(a2);
+    if (s instanceof $Next2<A1, A2, R> n) { a1 = n.a1; a2 = n.a2; }
+    else return (($Done2<A1, A2, R>) s).value;
+  }
+}
+static <A1, A2, R> Function<A1, Function<A2, R>> $loop2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body) {
+  return a1 -> a2 -> $run2(body, a1, a2);
+}
+static <A1, A2, R> R $tfix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, $Step2<A1, A2, R>>>> gen, A1 a1, A2 a2) {
+  return $run2(gen.apply(x1 -> x2 -> $tfix2(gen, x1, x2)), a1, a2);
 }
 
 public interface nat {
@@ -68,29 +86,29 @@ public static class Cons implements natlist {
 static Function<natlist, Function<natlist, natlist>>
 rev_acc;
 static {
-rev_acc = l -> acc ->
-((l instanceof natlist.Nil) ? acc
+rev_acc = $loop2(l -> acc ->
+((l instanceof natlist.Nil) ? $done2(acc)
 : (l instanceof natlist.Cons) ? let(((natlist.Cons)l).Cons0, x ->
                                 let(((natlist.Cons)l).Cons1, xs ->
-                                rev_acc.apply(xs).apply(((natlist)
-                                                 new natlist.Cons(x, acc)))))
+                                $next2(xs, ((natlist)
+                                new natlist.Cons(x, acc)))))
 : error("non-exhaustive match"))
-;
+);
 }
 
-static Function<natlist, natlist> rev_pair = l -> fix2(go -> l0 -> acc ->
-  ((l0 instanceof natlist.Nil) ? acc
+static Function<natlist, natlist> rev_pair = l -> $tfix2(go -> l0 -> acc ->
+  ((l0 instanceof natlist.Nil) ? $done2(acc)
   : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons0, x ->
                                    let(((natlist.Cons)l0).Cons1, xs ->
-                                   go.apply(xs).apply(((natlist)
-                                               new natlist.Cons(x, acc)))))
+                                   $next2(xs, ((natlist)
+                                   new natlist.Cons(x, acc)))))
   : error("non-exhaustive match"))
-  , fix2(go -> l0 -> acc ->
-  ((l0 instanceof natlist.Nil) ? acc
+  , $tfix2(go -> l0 -> acc ->
+  ((l0 instanceof natlist.Nil) ? $done2(acc)
   : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons0, x ->
                                    let(((natlist.Cons)l0).Cons1, xs ->
-                                   go.apply(xs).apply(((natlist)
-                                               new natlist.Cons(x, acc)))))
+                                   $next2(xs, ((natlist)
+                                   new natlist.Cons(x, acc)))))
   : error("non-exhaustive match"))
   , l, ((natlist) new natlist.Nil())), ((natlist) new natlist.Nil()))
   ;
