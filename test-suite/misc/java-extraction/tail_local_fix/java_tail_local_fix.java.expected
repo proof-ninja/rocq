@@ -1,0 +1,116 @@
+import java.util.function.Function;
+
+class java_tail_local_fix {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
+static abstract class $Step2<A1, A2, R> {}
+static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final R value;
+  $Done2(R value) { this.value = value; }
+}
+static final class $Next2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final A1 a1; final A2 a2;
+  $Next2(A1 a1, A2 a2) { this.a1 = a1; this.a2 = a2; }
+}
+static <A1, A2, R> $Step2<A1, A2, R> $done2(R value) { return new $Done2<>(value); }
+static <A1, A2, R> $Step2<A1, A2, R> $next2(A1 a1, A2 a2) { return new $Next2<>(a1, a2); }
+static <A1, A2, R> R $run2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body, A1 a1, A2 a2) {
+  while (true) {
+    $Step2<A1, A2, R> s = body.apply(a1).apply(a2);
+    if (s instanceof $Next2<A1, A2, R> n) { a1 = n.a1; a2 = n.a2; }
+    else return (($Done2<A1, A2, R>) s).value;
+  }
+}
+static <A1, A2, R> Function<A1, Function<A2, R>> $loop2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body) {
+  return a1 -> a2 -> $run2(body, a1, a2);
+}
+static <A1, A2, R> R $tfix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, $Step2<A1, A2, R>>>> gen, A1 a1, A2 a2) {
+  return $run2(gen.apply(x1 -> x2 -> $tfix2(gen, x1, x2)), a1, a2);
+}
+
+public interface nat {
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+}
+
+public interface natlist {
+public static class Nil implements natlist {
+  
+  Nil() {
+    }
+    
+  }
+
+public static class Cons implements natlist {
+  final nat Cons0;
+  final natlist Cons1;
+  
+  Cons(nat Cons0, natlist Cons1) {
+    this.Cons0 = Cons0;
+    this.Cons1 = Cons1;
+    }
+    
+  }
+
+}
+
+static Function<natlist, nat> length = l -> $tfix2(go -> l0 -> n ->
+  ((l0 instanceof natlist.Nil) ? $done2(n)
+  : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons1, xs ->
+                                   $next2(xs, ((nat) new nat.S(n))))
+  : error("non-exhaustive match"))
+  , l, ((nat) new nat.O()))
+  ;
+
+static Function<natlist, nat> count_zeros = l -> $tfix2(go -> l0 -> n ->
+  ((l0 instanceof natlist.Nil) ? $done2(n)
+  : (l0 instanceof natlist.Cons) ? let(((natlist.Cons)l0).Cons0, x ->
+                                   let(((natlist.Cons)l0).Cons1, xs ->
+                                   let(((x instanceof nat.O) ? ((nat)
+                                          new nat.S(n))
+                                   : (x instanceof nat.S) ? n
+                                   : error("non-exhaustive match")), n$ ->
+                                   $next2(xs, n$))))
+  : error("non-exhaustive match"))
+  , l, ((nat) new nat.O()))
+  ;
+
+static Function<natlist, natlist> rev_onto = fix1(go -> acc -> l ->
+  ((l instanceof natlist.Nil) ? acc
+  : (l instanceof natlist.Cons) ? let(((natlist.Cons)l).Cons0, x ->
+                                  let(((natlist.Cons)l).Cons1, xs ->
+                                  go.apply(((natlist)
+                                    new natlist.Cons(x, acc))).apply(xs)))
+  : error("non-exhaustive match"))
+  , ((natlist) new natlist.Nil()));
+
+}
