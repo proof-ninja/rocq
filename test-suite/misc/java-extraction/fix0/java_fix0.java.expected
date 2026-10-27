@@ -22,6 +22,31 @@ a1) {
   return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
 }
 
+static abstract class $Step3<A1, A2, A3, R> {}
+static final class $Done3<A1, A2, A3, R> extends $Step3<A1, A2, A3, R> {
+  final R value;
+  $Done3(R value) { this.value = value; }
+}
+static final class $Next3<A1, A2, A3, R> extends $Step3<A1, A2, A3, R> {
+  final A1 a1; final A2 a2; final A3 a3;
+  $Next3(A1 a1, A2 a2, A3 a3) { this.a1 = a1; this.a2 = a2; this.a3 = a3; }
+}
+static <A1, A2, A3, R> $Step3<A1, A2, A3, R> $done3(R value) { return new $Done3<>(value); }
+static <A1, A2, A3, R> $Step3<A1, A2, A3, R> $next3(A1 a1, A2 a2, A3 a3) { return new $Next3<>(a1, a2, a3); }
+static <A1, A2, A3, R> R $run3(Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>> body, A1 a1, A2 a2, A3 a3) {
+  while (true) {
+    $Step3<A1, A2, A3, R> s = body.apply(a1).apply(a2).apply(a3);
+    if (s instanceof $Next3<A1, A2, A3, R> n) { a1 = n.a1; a2 = n.a2; a3 = n.a3; }
+    else return (($Done3<A1, A2, A3, R>) s).value;
+  }
+}
+static <A1, A2, A3, R> Function<A1, Function<A2, Function<A3, R>>> $loop3(Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>> body) {
+  return a1 -> a2 -> a3 -> $run3(body, a1, a2, a3);
+}
+static <A1, A2, A3, R> R $tfix3(Function<Function<A1, Function<A2, Function<A3, R>>>, Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>>> gen, A1 a1, A2 a2, A3 a3) {
+  return $run3(gen.apply(x1 -> x2 -> x3 -> $tfix3(gen, x1, x2, x3)), a1, a2, a3);
+}
+
 public interface nat {
 public static class O implements nat {
   
@@ -109,13 +134,13 @@ static Function<mode, Function<natlist, Function<natlist, natlist>>>
 static Function<Function<natlist, Function<natlist, natlist>>, Function<nat, Function<natlist, natlist>>>
 iterate;
 static {
-iterate = f -> n -> l ->
-((n instanceof nat.O) ? l
+iterate = $loop3(f -> n -> l ->
+((n instanceof nat.O) ? $done3(l)
 : (n instanceof nat.S) ? let(((nat.S)n).S0, k ->
-                         iterate.apply(f).apply(k).apply(f.apply(l).apply(((natlist)
-                                                                   new natlist.Nil()))))
+                         $next3(f, k, f.apply(l).apply(((natlist)
+                                                new natlist.Nil()))))
 : error("non-exhaustive match"))
-;
+);
 }
 
 static Function<nat, Function<natlist, natlist>> rev_iterated = n -> input ->

@@ -190,6 +190,147 @@ let rec is_fix_head = function
   | MLmagic a -> is_fix_head a
   | _ -> false
 
+(*s Self tail calls.
+
+    A recursive function whose body calls itself in tail position runs in
+    constant Java stack: its body is printed in "tail mode", where every
+    tail position yields a [$StepN] — [$doneN(v)] for a result, and
+    [$nextN(x1, ..., xN)] for a self call with exactly as many arguments as
+    the function has lambdas — and a [$runN] loop in the preamble feeds the
+    arguments of a [$NextN] back into the body. A top-level [Dfix] member is
+    wrapped in [$loopN], a local fix printed with [$tfixN] instead of
+    [fixK]; a self call elsewhere keeps recursing through the function as
+    before. The body stays an expression, and the helpers are generic
+    methods typed by their context like [fixK], since a local fix has no
+    type annotation that a statement-level loop could declare. [$StepN]
+    carries the argument types, so that javac checks the arguments of a
+    [$nextN] against the parameters (and a lambda among them gets its
+    target type). Helper names start with [$], which no extracted
+    identifier does ([pr_id] only maps a non-initial ['] to [$]).
+
+    Tail mode is entered at the lambdas of the function ([Armed], consumed
+    by the [MLlam] case) and only flows into the branches of a match and
+    the body of a [let]; [has_tail_call] decides whether a function gets
+    the encoding by the same traversal, which is what keeps the decision
+    and the printing in agreement: a body wrapped in a loop helper must be
+    printed in tail mode. *)
+
+type tail_self =
+  | SelfGlob of global (* a top-level [Dfix] member *)
+  | SelfRel of int     (* a local fix, as a de Bruijn index *)
+
+type tail_ctx =
+  | NoTail
+  | Armed of tail_self      (* the lambdas of the function are next *)
+  | Tail of tail_self * int (* a tail position of a body of this arity *)
+
+let shift_self n = function
+  | SelfRel k -> SelfRel (k + n)
+  | SelfGlob _ as s -> s
+
+let shift_tail n = function
+  | Tail (s, k) -> Tail (shift_self n s, k)
+  | t -> t
+
+let is_self self f = match self, f with
+  | SelfGlob r, MLglob r' -> GlobRef.CanOrd.equal r.glob r'.glob
+  | SelfRel k, MLrel k' -> Int.equal k k'
+  | _ -> false
+
+let is_tail_call self k f args = is_self self f && Int.equal (List.length args) k
+
+(* The branches a match prints: the constructor branches up to the first
+   catch-all ([Pwild] or [Prel]), and that catch-all, which ends the
+   conditional chain; later branches are unreachable. *)
+let printed_branches pv =
+  let is_catch_all (_,p,_) = match p with Pwild | Prel _ -> true | _ -> false in
+  let rec split acc = function
+    | [] -> List.rev acc, None
+    | b :: _ when is_catch_all b -> List.rev acc, Some b
+    | b :: rest -> split (b :: acc) rest
+  in
+  split [] (Array.to_list pv)
+
+(* The body of [let id = a1 in a2] as printed: a fix head is substituted
+   into the body instead of being bound (see the [MLletin] case), and the
+   binder disappears with it. *)
+let let_body a1 a2 =
+  if is_fix_head a1 then `Subst (ast_subst a1 a2) else `Bind a2
+
+(* Whether [a], the body of a function of arity [k] under its lambdas, has
+   a tail call to [self] that tail mode would print as [$nextN]. *)
+let rec has_tail_call self k = function
+  | MLapp (f, args) -> is_tail_call self k f args
+  | MLcase (_, _, pv) ->
+      let tests, default = printed_branches pv in
+      List.exists
+        (fun (ids, _, t) -> has_tail_call (shift_self (List.length ids) self) k t)
+        (tests @ Option.List.cons default [])
+  | MLletin (_, a1, a2) ->
+      (match let_body a1 a2 with
+       | `Subst a -> has_tail_call self k a
+       | `Bind a -> has_tail_call (shift_self 1 self) k a)
+  | _ -> false
+
+(* The arity of [def] when it is a function with a self tail call. *)
+let tail_arity self def = match def with
+  | MLlam _ ->
+      let fl, body = collect_lams def in
+      let k = List.length fl in
+      if has_tail_call (shift_self k self) k body then Some k else None
+  | _ -> None
+
+let tail_arities = ref Int.Set.empty
+
+let reset_tail_arities () =
+  tail_arities := Int.Set.empty
+
+let record_tail_arity k =
+  tail_arities := Int.Set.add k !tail_arities
+
+let pp_tail_helper k =
+  let is = List.init k (fun i -> i + 1) in
+  let cat sep f = String.concat sep (List.map f is) in
+  let sp = Printf.sprintf in
+  let tps = cat ", " (sp "A%d") ^ ", R" in
+  let step = sp "$Step%d<%s>" k tps in
+  let rec fn_type res i =
+    if i > k then res else sp "Function<A%d, %s>" i (fn_type res (i + 1))
+  in
+  let body_ty = fn_type step 1 and fun_ty = fn_type "R" 1 in
+  let params = cat ", " (fun i -> sp "A%d a%d" i i) in
+  let args = cat ", " (sp "a%d") in
+  let lines = [
+    sp "static abstract class $Step%d<%s> {}" k tps;
+    sp "static final class $Done%d<%s> extends %s {" k tps step;
+    sp "  final R value;";
+    sp "  $Done%d(R value) { this.value = value; }" k;
+    "}";
+    sp "static final class $Next%d<%s> extends %s {" k tps step;
+    sp "  %s" (cat " " (fun i -> sp "final A%d a%d;" i i));
+    sp "  $Next%d(%s) { %s }" k params (cat " " (fun i -> sp "this.a%d = a%d;" i i));
+    "}";
+    sp "static <%s> %s $done%d(R value) { return new $Done%d<>(value); }" tps step k k;
+    sp "static <%s> %s $next%d(%s) { return new $Next%d<>(%s); }" tps step k params k args;
+    sp "static <%s> R $run%d(%s body, %s) {" tps k body_ty params;
+    "  while (true) {";
+    sp "    %s s = body%s;" step (cat "" (sp ".apply(a%d)"));
+    sp "    if (s instanceof $Next%d<%s> n) { %s }" k tps (cat " " (fun i -> sp "a%d = n.a%d;" i i));
+    sp "    else return (($Done%d<%s>) s).value;" k tps;
+    "  }";
+    "}";
+    (* The loop runs on method parameters: a lambda could not reassign the
+       parameters it captures from enclosing lambdas. *)
+    sp "static <%s> %s $loop%d(%s body) {" tps fun_ty k body_ty;
+    sp "  return %s -> $run%d(body, %s);" (cat " -> " (sp "a%d")) k args;
+    "}";
+    sp "static <%s> R $tfix%d(Function<%s, %s> gen, %s) {" tps k fun_ty body_ty params;
+    sp "  return $run%d(gen.apply(%s -> $tfix%d(gen, %s)), %s);"
+      k (cat " -> " (sp "x%d")) k (cat ", " (sp "x%d")) args;
+    "}";
+  ] in
+  prlist_strict (fun l -> str l ++ fnl ()) lines ++ fnl ()
+
 let pp_fix_helper k =
   let tyvar i = str "A" ++ int i in
   let arg i = str "a" ++ int i in
@@ -478,7 +619,23 @@ let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
 let pp_lambda_target table fn_ty lam =
   paren (paren (pp_type table (erase_type fn_ty)) ++ paren lam)
 
-let rec pp_expr table env tenv expected args =
+(* [tail] is the tail mode of the expression (see "Self tail calls"). A
+   match or a [let] passes it on to its branches or its body, a self tail
+   call becomes [$nextN], and every other expression in tail mode is a
+   result, printed as usual inside [$doneN]. *)
+let rec pp_expr ?(tail=NoTail) table env tenv expected args a =
+  match tail, a with
+  | NoTail, _ | Armed _, MLlam _ -> pp_expr_node ~tail table env tenv expected args a
+  | Armed _, _ -> assert false
+  | Tail (self, k), _ ->
+      assert (List.is_empty args);
+      (match a with
+       | MLcase _ | MLletin _ -> pp_expr_node ~tail table env tenv expected args a
+       | MLapp (f, args') when is_tail_call self k f args' ->
+           pp_expr_node ~tail table env tenv expected args a
+       | _ -> str "$done" ++ int k ++ paren (pp_expr table env tenv expected args a))
+
+and pp_expr_node ?(tail=NoTail) table env tenv expected args =
   let apply st = pp_app st args in
   let apply_cast head_ty st =
     let n = List.length args in
@@ -528,7 +685,10 @@ let rec pp_expr table env tenv expected args =
         let stl =
           List.map2 (fun a ety -> pp_expr table env tenv ety [] a) args' arg_tys
         in
-        pp_expr table env tenv expected (stl @ args) f
+        (match tail with
+         | Tail (self, k) when is_tail_call self k f args' ->
+             str "$next" ++ int k ++ paren (prlist_with_sep comma identity stl)
+         | _ -> pp_expr table env tenv expected (stl @ args) f)
     | MLlam _ as a ->
         let fl,a' = collect_lams a in (* [fl] : arguments, [a'] : body *)
         (* [fl] lists binders innermost first; [peel_lams] returns argument
@@ -556,7 +716,13 @@ let rec pp_expr table env tenv expected args =
         let body_ty = if needs_target then Some Tunknown else body_ty in
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
         let tenv' = List.rev param_tys @ tenv in
-        let lam = pp_abst (pp_expr table env' tenv' body_ty [] a') (List.rev fl) in
+        let body_tail = match tail with
+          | Armed self -> Tail (shift_self n self, n)
+          | _ -> NoTail
+        in
+        let lam =
+          pp_abst (pp_expr ~tail:body_tail table env' tenv' body_ty [] a') (List.rev fl)
+        in
         if needs_target then
           let fn_ty = fn_type_of param_tys Tunknown in
           pp_cast table ~expected ~actual:(Some fn_ty) (pp_lambda_target table fn_ty lam)
@@ -567,8 +733,9 @@ let rec pp_expr table env tenv expected args =
            used more than once below, this substitution duplicates the
            recursive computation itself — it will be re-executed once per
            use, not just re-printed as source text. *)
-        if is_fix_head a1 then pp_expr table env tenv expected args (ast_subst a1 a2)
-        else
+        (match let_body a1 a2 with
+         | `Subst a -> pp_expr ~tail table env tenv expected args a
+         | `Bind a2 ->
           let body_expected = if List.is_empty args then expected else None in
           (* A lambda value gets an [Object] target (so the [MLlam] case
              casts it) and the bound variable the function type of that
@@ -582,8 +749,10 @@ let rec pp_expr table env tenv expected args =
           let i,env' = push_vars [id_of_mlid id] env in
           let pp_id = pr_id (List.hd i)
           and pp_a1 = pp_expr table env tenv a1_expected [] a1
-          and pp_a2 = pp_expr table env' (a1_ty :: tenv) body_expected [] a2 in
-          hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
+          and pp_a2 =
+            pp_expr ~tail:(shift_tail 1 tail) table env' (a1_ty :: tenv) body_expected [] a2
+          in
+          hv 0 (apply (pp_letin pp_id pp_a1 pp_a2)))
     | MLglob r ->
         apply_cast (lookup_const_type r) (pp_global table Term r)
     | MLcons (typ,r,args') -> (* [r] : a name of a constructor *)
@@ -639,7 +808,7 @@ let rec pp_expr table env tenv expected args =
            arguments before they reach field types. *)
         let typ = expand_aliases typ in
         let branch_expected = if List.is_empty args then expected else None in
-        apply (paren (pp_pat table env tenv typ branch_expected t pv))
+        apply (paren (pp_pat ~tail table env tenv typ branch_expected t pv))
     | MLfix (i,ids,defs) ->
         (* No cast: [fixK] is a generic method, target-typed by context. *)
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
@@ -675,15 +844,26 @@ and pp_fix table env tenv i (ids,bl) args =
           && Int.equal i 0)
   then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
   let k = List.length args in
-  record_fix_arity k;
-  str "fix" ++ int k ++
-    paren
-      (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv None [] bl.(0) ++
-       (match args with
-        | [] -> mt ()
-        | _ -> str ", " ++ prlist_with_sep comma identity args))
+  (* The fix itself is [MLrel 1] in its body. [$tfixN] takes exactly the
+     arguments of the loop; a fix applied to fewer or more stays [fixK]. *)
+  match tail_arity (SelfRel 1) bl.(0) with
+  | Some n when Int.equal n k ->
+      record_tail_arity k;
+      str "$tfix" ++ int k ++
+        paren
+          (pr_id ids.(0) ++ str " -> " ++
+           pp_expr ~tail:(Armed (SelfRel 1)) table env tenv None [] bl.(0) ++
+           str ", " ++ prlist_with_sep comma identity args)
+  | _ ->
+      record_fix_arity k;
+      str "fix" ++ int k ++
+        paren
+          (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv None [] bl.(0) ++
+           (match args with
+            | [] -> mt ()
+            | _ -> str ", " ++ prlist_with_sep comma identity args))
 
-and pp_one_pat table env tenv typ expected exp (ids,p,t) =
+and pp_one_pat ~tail table env tenv typ expected exp (ids,p,t) =
   (* push_vars after List.rev_map makes the head of ids' correspond to
      de Bruijn 1 (= the last constructor argument). To match constructor
      field index j (0 = first argument) we use List.rev ids'. *)
@@ -711,7 +891,7 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
     | None -> None
   in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
-  let body = pp_expr table env' tenv' expected [] t in
+  let body = pp_expr ~tail:(shift_tail n tail) table env' tenv' expected [] t in
   let cast_exp = paren (paren constr ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
@@ -740,25 +920,25 @@ and pp_one_pat table env tenv typ expected exp (ids,p,t) =
 (* A top-level [Pwild] or [Prel] matches unconditionally, so it cannot (and
    need not) be tested with [instanceof]: its body is the default of the
    conditional chain. [Prel] additionally binds the scrutinee to a variable. *)
-and pp_catch_all_pat table env tenv typ expected scrut (ids,p,t) =
+and pp_catch_all_pat ~tail table env tenv typ expected scrut (ids,p,t) =
   match p with
   | Pwild ->
       assert (List.is_empty ids);
-      pp_expr table env tenv expected [] t
+      pp_expr ~tail table env tenv expected [] t
   | Prel _ ->
       let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
-      let body = pp_expr table env' (Some typ :: tenv) expected [] t in
+      let body = pp_expr ~tail:(shift_tail 1 tail) table env' (Some typ :: tenv) expected [] t in
       (match ids' with
        | [id] -> pp_letin (pr_id id) scrut body
        | _ -> assert false)
   | _ -> assert false
 
-and pp_pat table env tenv typ expected t pv =
+and pp_pat ~tail table env tenv typ expected t pv =
   let exp = pp_expr table env tenv None [] t in
   match t with
   | MLrel _ | MLglob _ ->
       (* already a simple value: safe and cheap to repeat in place *)
-      pp_pat_branches table env tenv typ expected exp pv
+      pp_pat_branches ~tail table env tenv typ expected exp pv
   | _ ->
       (* bind the scrutinee once so a complex/effectful expression is not
          re-evaluated in every [instanceof] test and field access. The name is
@@ -768,27 +948,21 @@ and pp_pat table env tenv typ expected t pv =
       let scrut_id = rename_id (Id.of_string "scrutinee") avoid in
       let env = (db, Id.Set.add scrut_id avoid) in
       let scrut = pr_id scrut_id in
-      pp_letin scrut exp (pp_pat_branches table env tenv typ expected scrut pv)
+      pp_letin scrut exp (pp_pat_branches ~tail table env tenv typ expected scrut pv)
 
 (* Every constructor branch (including the last one) is guarded by an
    [instanceof] test; the chain ends with the first catch-all branch if any,
    otherwise with an explicit match-failure so that a value fitting no branch
    raises a clear error instead of an accidental ClassCastException. *)
-and pp_pat_branches table env tenv typ expected scrut pv =
-  let is_catch_all (_,p,_) = match p with Pwild | Prel _ -> true | _ -> false in
-  let rec split acc = function
-    | [] -> List.rev acc, None
-    | b :: _ when is_catch_all b -> List.rev acc, Some b (* later branches are unreachable *)
-    | b :: rest -> split (b :: acc) rest
-  in
-  let tests, default = split [] (Array.to_list pv) in
+and pp_pat_branches ~tail table env tenv typ expected scrut pv =
+  let tests, default = printed_branches pv in
   let pp_default = match default with
-    | Some b -> pp_catch_all_pat table env tenv typ expected scrut b
+    | Some b -> pp_catch_all_pat ~tail table env tenv typ expected scrut b
     | None -> str "error(\"non-exhaustive match\")"
   in
   prlist_strict
     (fun b ->
-      let constr, body = pp_one_pat table env tenv typ expected scrut b in
+      let constr, body = pp_one_pat ~tail table env tenv typ expected scrut b in
       hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     tests ++
   hv 2 pp_default
@@ -914,11 +1088,23 @@ let pp_decl table = function
       if is_inline_custom rv.(i) then mt ()
       else str "static " ++ pp_type table ty.(i) ++ spc() ++ pp_global table Term rv.(i) ++ str ";" ++ fnl()
     in
+    (* A member with a self tail call is wrapped in [$loopN] (see "Self tail
+       calls"), unless its type has fewer arrows than it has lambdas: the
+       [MLlam] case then casts the lambda to [Object] instead. *)
+    let pp_def i =
+      let self = SelfGlob rv.(i) in
+      let pp ?tail () = pp_expr ?tail table (empty_env table ()) [] (Some ty.(i)) [] defs.(i) in
+      match tail_arity self defs.(i) with
+      | Some k when Int.equal (arrows_upto ty.(i) k) k ->
+          record_tail_arity k;
+          str "$loop" ++ int k ++ paren (pp ~tail:(Armed self) ())
+      | _ -> pp ()
+    in
     let init i =
       if is_inline_custom rv.(i) then mt ()
       else pp_global table Term rv.(i) ++ str " = " ++
         (if is_custom rv.(i) then str (find_custom rv.(i))
-         else pp_expr table (empty_env table ()) [] (Some ty.(i)) [] defs.(i)) ++ str ";" ++ fnl()
+         else pp_def i) ++ str ";" ++ fnl()
     in
     Array.fold_left (++) (mt ()) (Array.init n decl) ++
     str "static {" ++ fnl() ++
@@ -956,6 +1142,7 @@ let pp_struct table id =
   let top_class = java_class_name id in
   fun structure ->
     reset_fix_arities ();
+    reset_tail_arities ();
     reset_type_info ();
     State.set_java_top_class table top_class;
     let body = prlist_strict pp_sel structure in
@@ -983,6 +1170,7 @@ let pp_struct table id =
     str "static <A> A __() { return (A) __dummy; }" ++
     fnl() ++ fnl() ++
     Int.Set.fold (fun k pp -> pp ++ pp_fix_helper k) arities (mt ()) ++
+    Int.Set.fold (fun k pp -> pp ++ pp_tail_helper k) !tail_arities (mt ()) ++
     body ++
     str "}" ++ fnl()
   
