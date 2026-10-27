@@ -36,3 +36,5 @@ self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$self_dir/java-extraction/run-case.sh" let_runout
 "$self_dir/java-extraction/run-case.sh" case_clash
 "$self_dir/java-extraction/run-case.sh" cons_fun_field
+"$self_dir/java-extraction/run-case.sh" tail_dfix
+"$self_dir/java-extraction/run-case.sh" tail_local_fix
