@@ -13,6 +13,13 @@ static final Function<Object, Object> __dummy = new Function<Object, Object>() {
 @SuppressWarnings("unchecked")
 static <A> A __() { return (A) __dummy; }
 
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
 public interface nat {
 public static class O implements nat {
   
@@ -70,6 +77,81 @@ static Function<nat, nat> let_fun = n ->
   ((nat) f.apply(f.apply(n))))
   ;
 
+static Function<nat, nat> succ = x -> ((nat) new nat.S(x))
+  ;
+
+public interface bool {
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+}
+
+static Function<bool, Function<nat, nat>> let_match = b -> n ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(x -> x
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(n))))
+  ;
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = m -> n ->
+((m instanceof nat.O) ? n
+: (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                         ((nat) new nat.S(add.apply(m$).apply(n))))
+: error("non-exhaustive match"))
+;
+}
+
+public interface tri {
+public static class TA implements tri {
+  
+  TA() {
+    }
+    
+  }
+
+public static class TB implements tri {
+  
+  TB() {
+    }
+    
+  }
+
+public static class TC implements tri {
+  
+  TC() {
+    }
+    
+  }
+
+}
+
+static Function<tri, Function<nat, nat>> let_match_arity = t -> n ->
+  let(((t instanceof tri.TA) ? ((Function<Object, Object>) (Object) add)
+  : (t instanceof tri.TB) ? ((Function<Object, Object>)(x ->
+      add.apply(((nat) new nat.S(((nat) x))))
+      ))
+  : (t instanceof tri.TC) ? ((Function<Object, Object>) (Object) ((Function<Object, Function<Object, Object>>)(x -> y ->
+      add.apply(((nat) y)).apply(((nat) x))
+      )))
+  : error("non-exhaustive match")), f ->
+  ((nat) ((Function<Object, Object>) f.apply(((Function<Object, Object>) f
+                                      .apply(n)).apply(n))).apply(n)))
+  ;
+
 static Function<nat, nat> apply_idf = n ->
   ((nat) ((Function<Object, Object>) idf.apply(((Function<Object, Object>)(x ->
                                         ((nat) new nat.S(((nat) x)))
@@ -93,6 +175,71 @@ static Function<Object, prod> pair_id = a -> ((prod)
 static Function<nat, nat> use_pair_id = n ->
   ((nat) ((Function<Object, Object>) fst.apply(pair_id.apply(n))).apply(((nat)
                                                                  new nat.S(n))))
+  ;
+
+static Function<bool, Function<nat, nat>> let_fix_match = b -> n ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(_ ->
+      succ.apply(fix2(plus -> m -> k ->
+          ((m instanceof nat.O) ? k
+          : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                                   ((nat) new nat.S(plus.apply(m$).apply(k))))
+          : error("non-exhaustive match"))
+          , n, ((nat) new nat.S(n))))
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(n))))
+  ;
+
+static Function<nat, nat> pred = x ->
+  ((x instanceof nat.O) ? ((nat) new nat.O())
+  : (x instanceof nat.S) ? let(((nat.S)x).S0, y -> y)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<bool, Function<bool, Function<nat, nat>>>
+  unknown_leaf = c -> b -> n ->
+  let(((c instanceof bool.True) ? succ
+  : (c instanceof bool.False) ? pred
+  : error("non-exhaustive match")), g ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) g)
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(x -> x
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(g.apply(n))))))
+  ;
+
+static Function<nat, Function<nat, nat>> twice_add = m -> n ->
+  add.apply(m).apply(add.apply(m).apply(n))
+  ;
+
+static Function<bool, Function<bool, Function<nat, nat>>>
+  unknown_app = c -> b -> n ->
+  let(((c instanceof bool.True) ? add
+  : (c instanceof bool.False) ? twice_add
+  : error("non-exhaustive match")), h ->
+  let(((b instanceof bool.True) ? ((Function<Object, Object>) (Object) h
+         .apply(n))
+  : (b instanceof bool.False) ? ((Function<Object, Object>)(x -> x
+      ))
+  : error("non-exhaustive match")), f ->
+  ((nat) f.apply(f.apply(h.apply(n).apply(n))))))
+  ;
+
+static Function<bool, bool> neg = b ->
+  ((b instanceof bool.True) ? ((bool) new bool.False())
+  : (b instanceof bool.False) ? ((bool) new bool.True())
+  : error("non-exhaustive match"))
+  ;
+
+static Function<bool, Function<nat, nat>> let_match_scrut = b -> n ->
+  let((let(neg.apply(b), scrutinee ->
+       (scrutinee instanceof bool.True) ? ((Function<Object, Object>) (Object) succ)
+       : (scrutinee instanceof bool.False) ? ((Function<Object, Object>)(x ->
+           x
+           ))
+       : error("non-exhaustive match"))), f ->
+  ((nat) f.apply(f.apply(n))))
   ;
 
 }
