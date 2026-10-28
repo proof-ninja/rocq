@@ -515,6 +515,9 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
   let apply_cast head_ty st =
     let n = List.length args in
     match head_ty, expected with
+    (* Under [self_target], [expected] is always the [Object]-erased
+       function type [MLletin] built (it is forwarded unchanged), so the
+       [erases_to_object] test is only a safeguard. *)
     | None, Some ety when self_target && not (erases_to_object ety) ->
         paren (paren (pp_type table (erase_type ety)) ++ str " (Object) "
                ++ pp_app st args)
