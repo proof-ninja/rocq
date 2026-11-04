@@ -25,20 +25,20 @@ Definition use_pair_fun : nat := fst pair_fun O.
 Definition let_fun (n : nat) : nat := let f := fun x => S x in f (f n).
 
 (* 2b. The value is a match with a lambda in one branch (issue #58). The
-   branch lambda has no target either, and the two operands of the
-   conditional must agree: the lambda casts itself and the global [succ]
-   is bridged to the same [Function<Object, Object>]. [f] is used twice
-   so that the [let] survives the optimizer (a single use is inlined). *)
+   branch lambda has no target either: it casts itself, the whole value
+   is cast to [Object], and [f] is cast back to a function where it is
+   applied. [f] is used twice so that the [let] survives the optimizer
+   (a single use is inlined). *)
 Definition succ (x : nat) : nat := S x.
 Inductive bool := true | false.
 Definition let_match (b : bool) (n : nat) : nat :=
   let f := match b with true => succ | false => fun x => x end in f (f n).
 
-(* 2c. The branch lambdas differ in arity: the shared target is built from
-   the shorter one, and the longer lambda is bridged to it. One branch is
-   a global so that the lambdas are not hoisted out of the match (every
-   branch starting with a lambda would be), and neither lambda
-   eta-reduces to [add]. *)
+(* 2c. The branch lambdas differ in arity: each casts itself to its own
+   function type, and the applications of [f] cast each [.apply]'s
+   receiver. One branch is a global so that the lambdas are not hoisted
+   out of the match (every branch starting with a lambda would be), and
+   neither lambda eta-reduces to [add]. *)
 Fixpoint add (m n : nat) : nat := match m with O => n | S m' => S (add m' n) end.
 Inductive tri := TA | TB | TC.
 Definition let_match_arity (t : tri) (n : nat) : nat :=
@@ -77,9 +77,9 @@ Definition let_fix_match (b : bool) (n : nat) : nat :=
     match b with true => succ | false => fun x => succ (g (S n)) end
   in f (f n).
 
-(* 2e. A tail value whose type the printer cannot tell (here [g], bound
-   to a match) is bridged too, through [(Object)]: its Java static type
-   is the one javac infers for the inner [let], not [Object]. *)
+(* 2e. A branch whose type the printer cannot tell (here [g], bound to a
+   match without a lambda): the cast of the whole value to [Object] covers
+   it too, whatever Java type javac infers for it. *)
 Definition pred (x : nat) : nat := match x with O => O | S y => y end.
 Definition unknown_leaf (c b : bool) (n : nat) : nat :=
   let g := match c with true => succ | false => pred end in
@@ -100,7 +100,26 @@ Definition neg (b : bool) : bool := match b with true => false | false => true e
 Definition let_match_scrut (b : bool) (n : nat) : nat :=
   let f := match neg b with true => succ | false => fun x => x end in f (f n).
 
+(* 2h. A dependent match: the branches have different ML types, and the
+   non-lambda one is no function at all. Cast to a function type, it
+   would fail at run time; [v] is never applied, so it stays [Object]. *)
+Definition T (b : bool) : Type := match b with true => nat -> nat | false => nat end.
+Definition dep (b : bool) : prod (T b) (T b) :=
+  let v := match b return T b with true => fun x => x | false => O end in pair v v.
+Definition dep_snd (b : bool) : nat :=
+  match b return prod (T b) (T b) -> nat with
+  | true => fun p => fst p (S O)
+  | false => fun p => match p with pair _ k => k end
+  end (dep b).
+
+(* 2i. The value of an outer [let] is an inner [let] of 2b: the type the
+   inner variable is bound at (here [Object]) must also be the one used
+   to type the outer variable, which is then cast to [nat] at [add]. *)
+Definition outer (b : bool) (n : nat) : nat :=
+  let y := (let f := match b with true => succ | false => fun x => x end in f (f n)) in
+  add y y.
+
 Extraction "java_lambda_object_target.java"
   use_pair_fun let_fun let_match let_match_arity let_fix_match
-  unknown_leaf unknown_app let_match_scrut
+  unknown_leaf unknown_app let_match_scrut dep_snd outer
   apply_idf over_idf use_pair_id.

@@ -87,6 +87,20 @@ public class DriverLambdaObjectTarget {
     check("let value: compound scrutinee (false)",
         toInt(java_lambda_object_target.let_match_scrut.apply(
             new java_lambda_object_target.bool.False()).apply(one)) == 3);
+    // dep_snd true = (fun x => x) 1 = 1; dep_snd false = O
+    check("let value: dependent match (true)",
+        toInt(java_lambda_object_target.dep_snd.apply(
+            new java_lambda_object_target.bool.True())) == 1);
+    check("let value: dependent match (false)",
+        toInt(java_lambda_object_target.dep_snd.apply(
+            new java_lambda_object_target.bool.False())) == 0);
+    // outer true 1 = add 3 3 = 6; outer false 1 = add 1 1 = 2
+    check("let value of a let value (true)",
+        toInt(java_lambda_object_target.outer.apply(
+            new java_lambda_object_target.bool.True()).apply(one)) == 6);
+    check("let value of a let value (false)",
+        toInt(java_lambda_object_target.outer.apply(
+            new java_lambda_object_target.bool.False()).apply(one)) == 2);
     // apply_idf 1 = S 1
     check("polymorphic parameter", toInt(java_lambda_object_target.apply_idf.apply(one)) == 2);
     // over_idf 1 = (fun f x => f x) (fun x => S x) 1 = S 1

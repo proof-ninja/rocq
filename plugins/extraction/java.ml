@@ -398,6 +398,27 @@ let rec peel_lams t k =
 let fn_type_of param_tys r =
   List.fold_right (fun p acc -> Tarr (Option.default Tunknown p, acc)) param_tys r
 
+let rec strip_magic = function
+  | MLmagic a -> strip_magic a
+  | a -> a
+
+let is_bare_lambda a = match strip_magic a with
+  | MLlam _ -> true
+  | _ -> false
+
+(* Counted the way the [MLlam] case does ([collect_lams] stops at an inner
+   [MLmagic]), so a cast built from this arity agrees with the printer. *)
+let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
+
+(* Whether a lambda sits in tail position of [a]: [a] itself, the body of
+   a [let], a branch of a match, through [MLmagic]. These are the
+   positions [expected] reaches unchanged in [pp_expr]. *)
+let rec has_tail_lambda = function
+  | MLlam _ -> true
+  | MLmagic a | MLletin (_, _, a) -> has_tail_lambda a
+  | MLcase (_, _, pv) -> Array.exists (fun (_, _, t) -> has_tail_lambda t) pv
+  | _ -> false
+
 (* Bottom-up type of an expression, where recoverable. [tenv] parallels the
    de Bruijn context of [env]: its head is the type of [MLrel 1]. *)
 let rec type_of_expr tenv = function
@@ -417,18 +438,27 @@ let rec type_of_expr tenv = function
                variable at its use sites. *)
             | None -> Some Tunknown)
        | None -> None)
-  | MLletin (_, a1, a2) -> type_of_expr (type_of_expr tenv a1 :: tenv) a2
+  | MLletin (_, a1, a2) -> type_of_expr (let_bound_type tenv a1 :: tenv) a2
   (* Invisible in the Java output: [pp_expr]'s own [MLmagic] case forwards
      [expected] and [args] to [a], so the printed type is [a]'s. *)
   | MLmagic a -> type_of_expr tenv a
   | MLlam _ | MLcase _ | MLfix _ | MLexn _ | MLdummy _ | MLaxiom _
   | MLtuple _ | MLuint _ | MLfloat _ | MLstring _ | MLparray _ -> None
 
+(* The type of a variable bound by [let] to [a1], as the [MLletin] case of
+   [pp_expr] prints [a1]: a bare lambda at the function type of its cast,
+   another value with a lambda in tail position at [Object]. *)
+and let_bound_type tenv a1 =
+  if is_bare_lambda a1 then
+    let params = List.init (lambda_arity a1) (fun _ -> None) in
+    Some (fn_type_of params Tunknown)
+  else if has_tail_lambda a1 then Some Tunknown
+  else type_of_expr tenv a1
+
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
    would sprinkle casts over monomorphic code (whose output must not
-   change), and a missing cast at worst fails javac. (The one exception
-   is a tail value under [self_target], see [pp_expr].) When the actual type
+   change), and a missing cast at worst fails javac. When the actual type
    is known and is not [Object], the cast goes through [(Object)] first:
    a direct cast between two distinct parameterized types (e.g. two
    [Function] shapes) would be rejected as inconvertible. *)
@@ -457,72 +487,24 @@ let pp_cast table ~expected ~actual pp =
 
     [expected] is [Object]-erased (or runs out of arrows) exactly at the
     first two kinds of position, so the [MLlam] case handles them itself.
-    [let] instead prints its value at an [Object]-erased function type
-    with [self_target] set, so that a lambda in tail position of the
-    value (the value itself, or a match branch) casts itself while the
-    other tail values are bridged to that type. A bare lambda in a
+    [let] passes [Some Tunknown] for a value with a lambda in tail
+    position on purpose (see the [MLletin] case). A bare lambda in a
     constructor field is the exception: [MLcons] prints it at the
     instantiated field type (which types the body precisely) and
     supplies that type as the target itself, then bridges to the field's
     declared type where the two differ. *)
 
-let rec strip_magic = function
-  | MLmagic a -> strip_magic a
-  | a -> a
-
-let is_bare_lambda a = match strip_magic a with
-  | MLlam _ -> true
-  | _ -> false
-
-(* Counted the way the [MLlam] case does ([collect_lams] stops at an inner
-   [MLmagic]), so a cast built from this arity agrees with the printer. *)
-let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
-
-(* Arities of the bare lambdas in tail position of [a]: [a] itself, the
-   body of a [let], every branch of a match, through [MLmagic]. A value
-   with such a lambda needs the treatment of a bare lambda when it sits
-   at a position without a target: the conditional chain of a match then
-   offers the branch lambda none either. The lambdas share one ML type,
-   so their arities differ only where a shorter one returns a function;
-   the common target is built from the shortest and the others are
-   bridged to it. The positions searched here are the ones [pp_expr]
-   forwards [self_target] to, except the head of an application, which
-   holds no tail lambda; keep the two in sync. *)
-let rec tail_lambda_arities a = match a with
-  | MLlam _ -> [lambda_arity a]
-  | MLmagic a | MLletin (_, _, a) -> tail_lambda_arities a
-  | MLcase (_, _, pv) ->
-      List.concat_map (fun (_, _, t) -> tail_lambda_arities t) (Array.to_list pv)
-  | _ -> []
-
 (* Printed erased, as [pp_cast] does: the type may still hold metas. *)
 let pp_lambda_target table fn_ty lam =
   paren (paren (pp_type table (erase_type fn_ty)) ++ paren lam)
 
-(* [self_target]: the expression sits at a position that offers a Java
-   lambda no target type (the value of a [let], see "Lambdas at [Object]"),
-   even where [expected] has arrows: a lambda in tail position must then
-   cast itself to its function type, and every other tail value is
-   bridged to [expected] by the leaf cases, so that the operands of a
-   conditional chain agree. A leaf whose type is unknown is bridged too,
-   through [(Object)]: its Java static type may be a function type the
-   printer cannot see (a variable bound to a match). It follows
-   [expected] into tail positions (the ones [tail_lambda_arities]
-   searches, and the head of an application, whose result is the tail
-   value) and is off everywhere else. *)
-let rec pp_expr ?(self_target=false) table env tenv expected args =
+let rec pp_expr table env tenv expected args =
   let apply st = pp_app st args in
   let apply_cast head_ty st =
     let n = List.length args in
-    match head_ty, expected with
-    (* Under [self_target], [expected] is always the [Object]-erased
-       function type [MLletin] built (it is forwarded unchanged), so the
-       [erases_to_object] test is only a safeguard. *)
-    | None, Some ety when self_target && not (erases_to_object ety) ->
-        paren (paren (pp_type table (erase_type ety)) ++ str " (Object) "
-               ++ pp_app st args)
-    | None, _ -> pp_app st args
-    | Some t, _ ->
+    match head_ty with
+    | None -> pp_app st args
+    | Some t ->
         let avail = arrows_upto t n in
         if Int.equal avail n then
           pp_cast table ~expected ~actual:(strip_arrows t n) (pp_app st args)
@@ -566,7 +548,7 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
         let stl =
           List.map2 (fun a ety -> pp_expr table env tenv ety [] a) args' arg_tys
         in
-        pp_expr ~self_target table env tenv expected (stl @ args) f
+        pp_expr table env tenv expected (stl @ args) f
     | MLlam _ as a ->
         let fl,a' = collect_lams a in (* [fl] : arguments, [a'] : body *)
         (* [fl] lists binders innermost first; [peel_lams] returns argument
@@ -587,12 +569,9 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
            cast the same way. [pp_cast] adds the cast to [expected] when
            that is a different known type (a branch whose ML type disagrees
            with the match's). *)
-        let needs_target =
-          List.is_empty args
-          && (self_target
-              || match expected with
-                 | Some t -> arrows_upto t n < n
-                 | None -> false)
+        let needs_target = match expected with
+          | Some t -> List.is_empty args && arrows_upto t n < n
+          | None -> false
         in
         let body_ty = if needs_target then Some Tunknown else body_ty in
         let fl,env' = push_vars (List.map id_of_mlid fl) env in
@@ -608,33 +587,30 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
            used more than once below, this substitution duplicates the
            recursive computation itself — it will be re-executed once per
            use, not just re-printed as source text. *)
-        (* [tail_lambda_arities] looks at [a2] before this substitution and
-           [self_target] reaches it after; the tail positions are the same. *)
-        if is_fix_head a1 then
-          pp_expr ~self_target table env tenv expected args (ast_subst a1 a2)
+        if is_fix_head a1 then pp_expr table env tenv expected args (ast_subst a1 a2)
         else
           let body_expected = if List.is_empty args then expected else None in
-          let body_self = self_target && List.is_empty args in
-          (* A value with a lambda in tail position (a bare lambda, or a
-             match with a lambda branch) is printed at the [Object]-erased
-             function type of the shortest such lambda, with [self_target]
-             so that the lambdas cast themselves to it and the other tail
-             values are bridged to it. The bound variable gets that type
-             too, so that its applications cast their results. *)
-          let a1_expected, a1_ty, a1_self =
-            match tail_lambda_arities a1 with
-            | [] -> None, type_of_expr tenv a1, false
-            | k :: ks ->
-                let k = List.fold_left min k ks in
-                let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
-                Some fn_ty, Some fn_ty, true
-          in
+          (* A lambda value gets an [Object] target (so the [MLlam] case
+             casts it) and the bound variable the function type of that
+             cast, so that its applications cast their results. A value
+             with a lambda further down in tail position (a match branch,
+             a [let] body) gets the same target, so that every such lambda
+             casts itself, but is then cast to [Object] as a whole and binds
+             the variable at [Object]: the conditional's other operands
+             need not be functions of that type (their Java types may
+             differ after erasure, and under a dependent match they may be
+             no function at all), and a variable at [Object] is cast to a
+             function only where it is applied, which only happens to a
+             function. *)
+          let a1_ty = let_bound_type tenv a1 in
           let i,env' = push_vars [id_of_mlid id] env in
           let pp_id = pr_id (List.hd i)
-          and pp_a1 = pp_expr ~self_target:a1_self table env tenv a1_expected [] a1
-          and pp_a2 =
-            pp_expr ~self_target:body_self table env' (a1_ty :: tenv) body_expected [] a2
-          in
+          and pp_a1 =
+            if is_bare_lambda a1 then pp_expr table env tenv (Some Tunknown) [] a1
+            else if has_tail_lambda a1 then
+              paren (str "(Object) " ++ pp_expr table env tenv (Some Tunknown) [] a1)
+            else pp_expr table env tenv None [] a1
+          and pp_a2 = pp_expr table env' (a1_ty :: tenv) body_expected [] a2 in
           hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
     | MLglob r ->
         apply_cast (lookup_const_type r) (pp_global table Term r)
@@ -691,8 +667,7 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
            arguments before they reach field types. *)
         let typ = expand_aliases typ in
         let branch_expected = if List.is_empty args then expected else None in
-        let branch_self = self_target && List.is_empty args in
-        apply (paren (pp_pat ~self_target:branch_self table env tenv typ branch_expected t pv))
+        apply (paren (pp_pat table env tenv typ branch_expected t pv))
     | MLfix (i,ids,defs) ->
         (* No cast: [fixK] is a generic method, target-typed by context. *)
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
@@ -715,7 +690,7 @@ let rec pp_expr ?(self_target=false) table env tenv expected args =
         (* [a]'s ML type disagrees with the context by construction, so the
            inner printer's own actual type triggers the cast to [expected]
            where one is needed. *)
-        pp_expr ~self_target table env tenv expected args a
+        pp_expr table env tenv expected args a
     | MLaxiom s ->
         str "error" ++ paren (pp_java_string ("AXIOM TO BE REALIZED (" ^ s ^ ")"))
     | MLuint _ -> user_err Pp.(str "Cannot handle primitive integers in Java yet.")
@@ -736,7 +711,7 @@ and pp_fix table env tenv i (ids,bl) args =
         | [] -> mt ()
         | _ -> str ", " ++ prlist_with_sep comma identity args))
 
-and pp_one_pat ?(self_target=false) table env tenv typ expected exp (ids,p,t) =
+and pp_one_pat table env tenv typ expected exp (ids,p,t) =
   (* push_vars after List.rev_map makes the head of ids' correspond to
      de Bruijn 1 (= the last constructor argument). To match constructor
      field index j (0 = first argument) we use List.rev ids'. *)
@@ -764,7 +739,7 @@ and pp_one_pat ?(self_target=false) table env tenv typ expected exp (ids,p,t) =
     | None -> None
   in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
-  let body = pp_expr ~self_target table env' tenv' expected [] t in
+  let body = pp_expr table env' tenv' expected [] t in
   let cast_exp = paren (paren constr ++ exp) in
   let wrapped = List.fold_right
     (fun j acc ->
@@ -793,25 +768,25 @@ and pp_one_pat ?(self_target=false) table env tenv typ expected exp (ids,p,t) =
 (* A top-level [Pwild] or [Prel] matches unconditionally, so it cannot (and
    need not) be tested with [instanceof]: its body is the default of the
    conditional chain. [Prel] additionally binds the scrutinee to a variable. *)
-and pp_catch_all_pat ?(self_target=false) table env tenv typ expected scrut (ids,p,t) =
+and pp_catch_all_pat table env tenv typ expected scrut (ids,p,t) =
   match p with
   | Pwild ->
       assert (List.is_empty ids);
-      pp_expr ~self_target table env tenv expected [] t
+      pp_expr table env tenv expected [] t
   | Prel _ ->
       let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
-      let body = pp_expr ~self_target table env' (Some typ :: tenv) expected [] t in
+      let body = pp_expr table env' (Some typ :: tenv) expected [] t in
       (match ids' with
        | [id] -> pp_letin (pr_id id) scrut body
        | _ -> assert false)
   | _ -> assert false
 
-and pp_pat ?(self_target=false) table env tenv typ expected t pv =
+and pp_pat table env tenv typ expected t pv =
   let exp = pp_expr table env tenv None [] t in
   match t with
   | MLrel _ | MLglob _ ->
       (* already a simple value: safe and cheap to repeat in place *)
-      pp_pat_branches ~self_target table env tenv typ expected exp pv
+      pp_pat_branches table env tenv typ expected exp pv
   | _ ->
       (* bind the scrutinee once so a complex/effectful expression is not
          re-evaluated in every [instanceof] test and field access. The name is
@@ -821,13 +796,13 @@ and pp_pat ?(self_target=false) table env tenv typ expected t pv =
       let scrut_id = rename_id (Id.of_string "scrutinee") avoid in
       let env = (db, Id.Set.add scrut_id avoid) in
       let scrut = pr_id scrut_id in
-      pp_letin scrut exp (pp_pat_branches ~self_target table env tenv typ expected scrut pv)
+      pp_letin scrut exp (pp_pat_branches table env tenv typ expected scrut pv)
 
 (* Every constructor branch (including the last one) is guarded by an
    [instanceof] test; the chain ends with the first catch-all branch if any,
    otherwise with an explicit match-failure so that a value fitting no branch
    raises a clear error instead of an accidental ClassCastException. *)
-and pp_pat_branches ?(self_target=false) table env tenv typ expected scrut pv =
+and pp_pat_branches table env tenv typ expected scrut pv =
   let is_catch_all (_,p,_) = match p with Pwild | Prel _ -> true | _ -> false in
   let rec split acc = function
     | [] -> List.rev acc, None
@@ -836,12 +811,12 @@ and pp_pat_branches ?(self_target=false) table env tenv typ expected scrut pv =
   in
   let tests, default = split [] (Array.to_list pv) in
   let pp_default = match default with
-    | Some b -> pp_catch_all_pat ~self_target table env tenv typ expected scrut b
+    | Some b -> pp_catch_all_pat table env tenv typ expected scrut b
     | None -> str "error(\"non-exhaustive match\")"
   in
   prlist_strict
     (fun b ->
-      let constr, body = pp_one_pat ~self_target table env tenv typ expected scrut b in
+      let constr, body = pp_one_pat table env tenv typ expected scrut b in
       hv 2 (paren (scrut ++ str " instanceof " ++ constr) ++ str " ? " ++ body) ++ fnl() ++ str ": ")
     tests ++
   hv 2 pp_default
