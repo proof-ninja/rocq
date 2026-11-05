@@ -398,6 +398,27 @@ let rec peel_lams t k =
 let fn_type_of param_tys r =
   List.fold_right (fun p acc -> Tarr (Option.default Tunknown p, acc)) param_tys r
 
+let rec strip_magic = function
+  | MLmagic a -> strip_magic a
+  | a -> a
+
+let is_bare_lambda a = match strip_magic a with
+  | MLlam _ -> true
+  | _ -> false
+
+(* Counted the way the [MLlam] case does ([collect_lams] stops at an inner
+   [MLmagic]), so a cast built from this arity agrees with the printer. *)
+let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
+
+(* Whether a lambda sits in tail position of [a]: [a] itself, the body of
+   a [let], a branch of a match, through [MLmagic]. These are the
+   positions [expected] reaches unchanged in [pp_expr]. *)
+let rec has_tail_lambda = function
+  | MLlam _ -> true
+  | MLmagic a | MLletin (_, _, a) -> has_tail_lambda a
+  | MLcase (_, _, pv) -> Array.exists (fun (_, _, t) -> has_tail_lambda t) pv
+  | _ -> false
+
 (* Bottom-up type of an expression, where recoverable. [tenv] parallels the
    de Bruijn context of [env]: its head is the type of [MLrel 1]. *)
 let rec type_of_expr tenv = function
@@ -417,12 +438,22 @@ let rec type_of_expr tenv = function
                variable at its use sites. *)
             | None -> Some Tunknown)
        | None -> None)
-  | MLletin (_, a1, a2) -> type_of_expr (type_of_expr tenv a1 :: tenv) a2
+  | MLletin (_, a1, a2) -> type_of_expr (let_bound_type tenv a1 :: tenv) a2
   (* Invisible in the Java output: [pp_expr]'s own [MLmagic] case forwards
      [expected] and [args] to [a], so the printed type is [a]'s. *)
   | MLmagic a -> type_of_expr tenv a
   | MLlam _ | MLcase _ | MLfix _ | MLexn _ | MLdummy _ | MLaxiom _
   | MLtuple _ | MLuint _ | MLfloat _ | MLstring _ | MLparray _ -> None
+
+(* The type of a variable bound by [let] to [a1], as the [MLletin] case of
+   [pp_expr] prints [a1]: a bare lambda at the function type of its cast,
+   another value with a lambda in tail position at [Object]. *)
+and let_bound_type tenv a1 =
+  if is_bare_lambda a1 then
+    let params = List.init (lambda_arity a1) (fun _ -> None) in
+    Some (fn_type_of params Tunknown)
+  else if has_tail_lambda a1 then Some Tunknown
+  else type_of_expr tenv a1
 
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
@@ -456,23 +487,12 @@ let pp_cast table ~expected ~actual pp =
 
     [expected] is [Object]-erased (or runs out of arrows) exactly at the
     first two kinds of position, so the [MLlam] case handles them itself.
-    [let] passes [Some Tunknown] for a lambda value on purpose. A bare
-    lambda in a constructor field is the exception: [MLcons] prints it at
-    the instantiated field type (which types the body precisely) and
+    [let] passes [Some Tunknown] for a value with a lambda in tail
+    position on purpose (see the [MLletin] case). A bare lambda in a
+    constructor field is the exception: [MLcons] prints it at the
+    instantiated field type (which types the body precisely) and
     supplies that type as the target itself, then bridges to the field's
     declared type where the two differ. *)
-
-let rec strip_magic = function
-  | MLmagic a -> strip_magic a
-  | a -> a
-
-let is_bare_lambda a = match strip_magic a with
-  | MLlam _ -> true
-  | _ -> false
-
-(* Counted the way the [MLlam] case does ([collect_lams] stops at an inner
-   [MLmagic]), so a cast built from this arity agrees with the printer. *)
-let lambda_arity a = List.length (fst (collect_lams (strip_magic a)))
 
 (* Printed erased, as [pp_cast] does: the type may still hold metas. *)
 let pp_lambda_target table fn_ty lam =
@@ -572,16 +592,24 @@ let rec pp_expr table env tenv expected args =
           let body_expected = if List.is_empty args then expected else None in
           (* A lambda value gets an [Object] target (so the [MLlam] case
              casts it) and the bound variable the function type of that
-             cast, so that its applications cast their results. *)
-          let a1_expected, a1_ty =
-            if is_bare_lambda a1 then
-              let params = List.init (lambda_arity a1) (fun _ -> None) in
-              Some Tunknown, Some (fn_type_of params Tunknown)
-            else None, type_of_expr tenv a1
-          in
+             cast, so that its applications cast their results. A value
+             with a lambda further down in tail position (a match branch,
+             a [let] body) gets the same target, so that every such lambda
+             casts itself, but is then cast to [Object] as a whole and binds
+             the variable at [Object]: the conditional's other operands
+             need not be functions of that type (their Java types may
+             differ after erasure, and under a dependent match they may be
+             no function at all), and a variable at [Object] is cast to a
+             function only where it is applied, which only happens to a
+             function. *)
+          let a1_ty = let_bound_type tenv a1 in
           let i,env' = push_vars [id_of_mlid id] env in
           let pp_id = pr_id (List.hd i)
-          and pp_a1 = pp_expr table env tenv a1_expected [] a1
+          and pp_a1 =
+            if is_bare_lambda a1 then pp_expr table env tenv (Some Tunknown) [] a1
+            else if has_tail_lambda a1 then
+              paren (str "(Object) " ++ pp_expr table env tenv (Some Tunknown) [] a1)
+            else pp_expr table env tenv None [] a1
           and pp_a2 = pp_expr table env' (a1_ty :: tenv) body_expected [] a2 in
           hv 0 (apply (pp_letin pp_id pp_a1 pp_a2))
     | MLglob r ->
