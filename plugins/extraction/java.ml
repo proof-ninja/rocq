@@ -540,6 +540,32 @@ let rec pp_expr table env tenv expected args =
     | MLrel n as a ->
         let id = get_db_name n env in
         apply_cast (type_of_expr tenv a) (pr_id id)
+    | MLapp (MLfix (0, ids, [|def|]), args')
+      when List.is_empty args && Option.has_some expected
+           && Int.equal (lambda_arity def) (List.length args') ->
+        (* A local fix applied to all its parameters, at a known result
+           type. The fix itself carries no type, so it is given the one its
+           application determines: each parameter at its argument's type,
+           [Object] where that is unknown (an inlined polymorphic accessor,
+           an application returning a type variable), and the expected
+           result type. The body is printed at that type, so a parameter at
+           [Object] is cast where it meets a concrete type (see "Lambdas at
+           [Object]"), and the recursive calls cast their results through
+           the fix's binding. Otherwise [fixK]'s type arguments would be
+           inferred from an [Object] argument and clash with the result
+           type (#35). *)
+        let param_tys =
+          List.map (fun a -> match type_of_expr tenv a with
+              | Some t when not (erases_to_object t) -> Some t
+              | _ -> None) args'
+        in
+        let fn_ty = fn_type_of param_tys (Option.get expected) in
+        let stl =
+          List.map2 (fun a ety -> pp_expr table env tenv ety [] a) args' param_tys
+        in
+        let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
+        pp_fix ~fn_ty table env' (Some fn_ty :: tenv) 0
+          (Array.of_list (List.rev ids'), [|def|]) stl
     | MLapp (f,args') ->
         let arg_tys = match type_of_expr tenv f with
           | Some ft -> arg_types ft (List.length args')
@@ -698,7 +724,7 @@ let rec pp_expr table env tenv expected args =
     | MLstring _ -> user_err Pp.(str "Cannot handle primitive strings in Java yet.")
     | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
 
-and pp_fix table env tenv i (ids,bl) args =
+and pp_fix ?fn_ty table env tenv i (ids,bl) args =
   if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
           && Int.equal i 0)
   then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
@@ -706,7 +732,7 @@ and pp_fix table env tenv i (ids,bl) args =
   record_fix_arity k;
   str "fix" ++ int k ++
     paren
-      (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv None [] bl.(0) ++
+      (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv fn_ty [] bl.(0) ++
        (match args with
         | [] -> mt ()
         | _ -> str ", " ++ prlist_with_sep comma identity args))
