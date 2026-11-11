@@ -596,17 +596,17 @@ and let_bound_type tenv a1 =
   else if has_tail_lambda a1 then Some Tunknown
   else type_of_expr tenv a1
 
-(* The types of the fields a branch pattern [p] of a match on [typ] binds,
-   in field order: the constructor's declared field types instantiated at
-   the scrutinee's type arguments, as [pp_one_pat] types the bound
-   variables. *)
+(* The types of the [n] fields a branch pattern [p] of a match on [typ]
+   binds, in field order: the constructor's declared field types
+   instantiated at the scrutinee's type arguments, as [pp_one_pat] types
+   the bound variables. [None] when they are not known. *)
 let pat_field_types typ p n = match p, typ with
   | Pusual r, Tglob (_, targs) ->
       (match constructor_arg_types r with
        | Some tys when Int.equal (List.length tys) n ->
-           List.map (fun ty -> Some (type_subst_list targs ty)) tys
-       | _ -> List.init n (fun _ -> None))
-  | _ -> List.init n (fun _ -> None)
+           Some (List.map (type_subst_list targs) tys)
+       | _ -> None)
+  | _ -> None
 
 (* The types of the variables a branch [(ids, p, _)] of a match on [typ]
    binds, innermost first, as the printer types them. *)
@@ -614,7 +614,10 @@ let branch_tenv typ (ids, p, _) =
   let n = List.length ids in
   match p with
   | Prel _ when Int.equal n 1 -> [Some typ]
-  | _ -> List.rev (pat_field_types typ p n)
+  | _ ->
+      (match pat_field_types typ p n with
+       | Some tys -> List.rev_map Option.make tys
+       | None -> List.init n (fun _ -> None))
 
 (* The parameter types of a local fix [def] of type [ps -> r] that its
    self calls agree with. A parameter typed from the fix's first argument
@@ -1051,7 +1054,10 @@ and pp_one_pat ~tail table env tenv typ expected exp (ids,p,t) =
     | _ -> None
   in
   let inst_tys = pat_field_types typ p n in
-  let field_ty j = List.nth inst_tys j in
+  let field_ty j = match inst_tys with
+    | Some tys -> Some (List.nth tys j)
+    | None -> None
+  in
   let tenv' = List.rev (List.init n field_ty) @ tenv in
   let body = pp_expr ~tail:(shift_tail n tail) table env' tenv' expected [] t in
   let cast_exp = paren (paren constr ++ exp) in
