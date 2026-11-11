@@ -596,6 +596,54 @@ and let_bound_type tenv a1 =
   else if has_tail_lambda a1 then Some Tunknown
   else type_of_expr tenv a1
 
+(* The types of the [n] fields a branch pattern [p] of a match on [typ]
+   binds, in field order: the constructor's declared field types
+   instantiated at the scrutinee's type arguments, as [pp_one_pat] types
+   the bound variables. [None] when they are not known. *)
+let pat_field_types typ p n = match p, typ with
+  | Pusual r, Tglob (_, targs) ->
+      (match constructor_arg_types r with
+       | Some tys when Int.equal (List.length tys) n ->
+           Some (List.map (type_subst_list targs) tys)
+       | _ -> None)
+  | _ -> None
+
+(* The types of the variables a branch [(ids, p, _)] of a match on [typ]
+   binds, innermost first, as the printer types them. *)
+let branch_tenv typ (ids, p, _) =
+  let n = List.length ids in
+  match p with
+  | Prel _ when Int.equal n 1 -> [Some typ]
+  | _ ->
+      (match pat_field_types typ p n with
+       | Some tys -> List.rev_map Option.make tys
+       | None -> List.init n (fun _ -> None))
+
+(* [type_of_expr], except that a match has the type all its branches
+   (but those that raise) agree on, and so does a [let] of one. A local
+   fix's argument read through an inlined accessor is such a match (see
+   the [MLapp] case of [pp_expr]). *)
+let rec static_type tenv a = match a with
+  | MLcase (typ, _, pv) ->
+      let typ = expand_aliases typ in
+      let tys = Array.fold_right (fun (_, _, t as br) acc -> match t with
+          | MLexn _ | MLaxiom _ -> acc
+          | _ -> static_type (branch_tenv typ br @ tenv) t :: acc) pv []
+      in
+      (match tys with
+       | Some t :: rest
+         when List.for_all
+                (function Some t' -> erases_same t t' | None -> false) rest ->
+           Some t
+       | _ -> None)
+  | MLletin (_, a1, a2) ->
+      let ty =
+        if is_bare_lambda a1 || has_tail_lambda a1 then let_bound_type tenv a1
+        else static_type tenv a1
+      in
+      static_type (ty :: tenv) a2
+  | _ -> type_of_expr tenv a
+
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
    would sprinkle casts over monomorphic code (whose output must not
@@ -697,6 +745,34 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
     | MLrel n as a ->
         let id = get_db_name n env in
         apply_cast (type_of_expr tenv a) (pr_id id)
+    | MLapp (MLfix (0, ids, [|def|]), args')
+      when List.is_empty args && Option.has_some expected
+           && Int.equal (lambda_arity def) (List.length args')
+           && List.for_all (fun a -> match static_type tenv a with
+               | Some t -> erases_to_object t
+               | None -> false) args' ->
+        (* A local fix applied to all its parameters, all its arguments at
+           [Object] (an inlined polymorphic accessor, an application
+           returning a type variable). javac infers the [fixK] type
+           arguments of the parameters as [Object] from them, while the
+           body uses the parameters at concrete types, without a cast
+           (#35). So the fix is put at [Object] as a whole (see "Lambdas at
+           [Object]"): its parameters and its result are at [Object], the
+           body casts them where it uses them at a concrete type, and the
+           result is cast to the expected type. Typing the parameters
+           concretely instead would be unsound: the fix has no type, and
+           one of a dependent type may take values of other types on other
+           iterations. With an argument of another type, javac's inference
+           types its parameter, which putting it at [Object] would lose
+           where the body uses it with no expected type, so such a fix is
+           printed as any other. *)
+        let k = List.length args' in
+        let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
+        let stl = List.map (pp_expr table env tenv (Some Tunknown) []) args' in
+        let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
+        pp_cast table ~expected ~actual:(Some Tunknown)
+          (pp_fix ~fn_ty table env' (Some fn_ty :: tenv) 0
+             (Array.of_list (List.rev ids'), [|def|]) stl)
     | MLapp (f,args') ->
         let arg_tys = match type_of_expr tenv f with
           | Some ft -> arg_types ft (List.length args')
@@ -867,7 +943,7 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
     | MLstring _ -> user_err Pp.(str "Cannot handle primitive strings in Java yet.")
     | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
 
-and pp_fix table env tenv i (ids,bl) args =
+and pp_fix ?fn_ty table env tenv i (ids,bl) args =
   if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
           && Int.equal i 0)
   then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
@@ -880,13 +956,13 @@ and pp_fix table env tenv i (ids,bl) args =
       str "$tfix" ++ int k ++
         paren
           (pr_id ids.(0) ++ str " -> " ++
-           pp_expr ~tail:(Armed (SelfRel 1)) table env tenv None [] bl.(0) ++
+           pp_expr ~tail:(Armed (SelfRel 1)) table env tenv fn_ty [] bl.(0) ++
            str ", " ++ prlist_with_sep comma identity args)
   | _ ->
       record_fix_arity k;
       str "fix" ++ int k ++
         paren
-          (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv None [] bl.(0) ++
+          (pr_id ids.(0) ++ str " -> " ++ pp_expr table env tenv fn_ty [] bl.(0) ++
            (match args with
             | [] -> mt ()
             | _ -> str ", " ++ prlist_with_sep comma identity args))
@@ -910,10 +986,7 @@ and pp_one_pat ~tail table env tenv typ expected exp (ids,p,t) =
          | _ -> None)
     | _ -> None
   in
-  let inst_tys = match sig_tys, typ with
-    | Some tys, Tglob (_, targs) -> Some (List.map (type_subst_list targs) tys)
-    | _ -> None
-  in
+  let inst_tys = pat_field_types typ p n in
   let field_ty j = match inst_tys with
     | Some tys -> Some (List.nth tys j)
     | None -> None

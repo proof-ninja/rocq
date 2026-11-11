@@ -1,0 +1,142 @@
+import java.util.function.Function;
+
+class java_local_fix_arg_cast {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
+static abstract class $Step2<A1, A2, R> {}
+static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final R value;
+  $Done2(R value) { this.value = value; }
+}
+static final class $Next2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final A1 a1; final A2 a2;
+  $Next2(A1 a1, A2 a2) { this.a1 = a1; this.a2 = a2; }
+}
+static <A1, A2, R> $Step2<A1, A2, R> $done2(R value) { return new $Done2<>(value); }
+static <A1, A2, R> $Step2<A1, A2, R> $next2(A1 a1, A2 a2) { return new $Next2<>(a1, a2); }
+static <A1, A2, R> R $run2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body, A1 a1, A2 a2) {
+  while (true) {
+    $Step2<A1, A2, R> s = body.apply(a1).apply(a2);
+    if (s instanceof $Next2<A1, A2, R> n) { a1 = n.a1; a2 = n.a2; }
+    else return (($Done2<A1, A2, R>) s).value;
+  }
+}
+static <A1, A2, R> Function<A1, Function<A2, R>> $loop2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body) {
+  return a1 -> a2 -> $run2(body, a1, a2);
+}
+static <A1, A2, R> R $tfix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, $Step2<A1, A2, R>>>> gen, A1 a1, A2 a2) {
+  return $run2(gen.apply(x1 -> x2 -> $tfix2(gen, x1, x2)), a1, a2);
+}
+
+public interface nat {
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+}
+
+public interface duo {
+public static class Duo implements duo {
+  final Object Duo0;
+  final Object Duo1;
+  
+  Duo(Object Duo0, Object Duo1) {
+    this.Duo0 = Duo0;
+    this.Duo1 = Duo1;
+    }
+    
+  }
+
+}
+
+static Function<duo, Object> dfst = d ->
+  ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo0, x -> x)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<duo, Object> dsnd = d ->
+  ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo1, y -> y)
+  : error("non-exhaustive match"))
+  ;
+
+static Function<duo, nat> duo_sum = d -> ((nat) fix2(add -> m -> n ->
+  ((m instanceof nat.O) ? n
+  : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                           ((nat) new nat.S(((nat) add.apply(m$).apply(n)))))
+  : error("non-exhaustive match"))
+  , ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo0, x -> x)
+  : error("non-exhaustive match")), ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo1, y ->
+                                                              y)
+  : error("non-exhaustive match"))))
+  ;
+
+static Function<duo, nat> duo_sum$ = d -> ((nat) fix2(add -> m -> n ->
+  ((m instanceof nat.O) ? n
+  : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                           ((nat) new nat.S(((nat) add.apply(m$).apply(n)))))
+  : error("non-exhaustive match"))
+  , dfst.apply(d), dsnd.apply(d)))
+  ;
+
+static Function<nat, nat> double0;
+static {
+double0 = n ->
+((n instanceof nat.O) ? ((nat) new nat.O())
+: (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
+                         ((nat) new nat.S(((nat)
+                         new nat.S(double0.apply(n$))))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<duo, nat> duo_mix = d -> ((nat) $tfix2(go -> m -> acc ->
+  ((m instanceof nat.O) ? $done2(double0.apply(((nat) acc)))
+  : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                           $next2(m$, ((nat) new nat.S(((nat) acc)))))
+  : error("non-exhaustive match"))
+  , dfst.apply(d), ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo1, y -> y)
+  : error("non-exhaustive match"))))
+  ;
+
+static Function<Function<nat, nat>, Function<nat, nat>> app1 = h -> h
+  ;
+
+static Function<nat, nat> escape = m -> fix2(f -> n -> acc ->
+  ((n instanceof nat.O) ? acc
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
+                           app1.apply(f.apply(n$)).apply(((nat)
+                                                  new nat.S(acc))))
+  : error("non-exhaustive match"))
+  , m, ((nat) new nat.O()))
+  ;
+
+}
