@@ -17,14 +17,11 @@ Definition dep (b : bool) : (if b then nat else bool) :=
    issue #14 sub-issue #35 (a value with no cast reaching a fixK helper's
    argument position), except that here the value comes from a dependent
    match rather than an inlined polymorphic accessor. Unlike #35's repro,
-   this one was not blocked by javac even before #35 was fixed (by typing
-   the applied fix from its application): fixK's type parameters were
-   inferred as Object here (harmlessly, since the local fix only ever uses
-   [m] via instanceof/let, never as a fixed concrete type), so this
-   documents that MLmagic itself was not what broke #35 -- kept as a
-   regression lock, not as a demonstration that MLmagic needed a fixK-side
-   fix. Since #35's fix, the argument at [Object] puts the fix at [Object]
-   as a whole, as for #35's repro. *)
+   this one is not blocked by javac: fixK's type parameters are inferred as
+   Object here (harmlessly, since the local fix only ever uses [m] via
+   instanceof/let, never as a fixed concrete type), so this documents that
+   MLmagic itself is not what breaks #35 -- kept as a regression lock, not
+   as a demonstration that MLmagic needed a fixK-side fix. *)
 Definition combine (n : nat) : nat :=
   (fix add (m n : nat) : nat := match m with O => n | S m' => S (add m' n) end)
     (dep true) n.

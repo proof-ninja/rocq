@@ -620,8 +620,9 @@ let branch_tenv typ (ids, p, _) =
        | None -> List.init n (fun _ -> None))
 
 (* [type_of_expr], except that a match has the type all its branches
-   (but those that raise) agree on. A local fix's argument read through an
-   inlined accessor is such a match (see the [MLapp] case of [pp_expr]). *)
+   (but those that raise) agree on, and so does a [let] of one. A local
+   fix's argument read through an inlined accessor is such a match (see
+   the [MLapp] case of [pp_expr]). *)
 let rec static_type tenv a = match a with
   | MLcase (typ, _, pv) ->
       let typ = expand_aliases typ in
@@ -747,35 +748,31 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
     | MLapp (MLfix (0, ids, [|def|]), args')
       when List.is_empty args && Option.has_some expected
            && Int.equal (lambda_arity def) (List.length args')
-           && List.exists (fun a -> match static_type tenv a with
+           && List.for_all (fun a -> match static_type tenv a with
                | Some t -> erases_to_object t
                | None -> false) args' ->
-        (* A local fix applied to all its parameters, one of its arguments
-           at [Object] (an inlined polymorphic accessor, an application
-           returning a type variable). javac would infer the [fixK] type
-           argument of that parameter as [Object] from it, while the body
-           uses the parameter at a concrete type, without a cast (#35). So
-           the fix is put at [Object] as a whole (see "Lambdas at
+        (* A local fix applied to all its parameters, all its arguments at
+           [Object] (an inlined polymorphic accessor, an application
+           returning a type variable). javac infers the [fixK] type
+           arguments of the parameters as [Object] from them, while the
+           body uses the parameters at concrete types, without a cast
+           (#35). So the fix is put at [Object] as a whole (see "Lambdas at
            [Object]"): its parameters and its result are at [Object], the
-           body casts them where it uses them at a concrete type, every
-           argument is cast up to [Object] (a lambda first casting itself
-           to its function type) so that javac infers [Object] for them,
-           and the result is cast to the expected type. Typing the
-           parameters concretely instead would be unsound: the fix has no
-           type, and one of a dependent type may take values of other types
-           on other iterations. *)
+           body casts them where it uses them at a concrete type, and the
+           result is cast to the expected type. Typing the parameters
+           concretely instead would be unsound: the fix has no type, and
+           one of a dependent type may take values of other types on other
+           iterations. With an argument of another type, javac's inference
+           types its parameter, which putting it at [Object] would lose
+           where the body uses it with no expected type, so such a fix is
+           printed as any other. *)
         let k = List.length args' in
         let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
-        let pp_arg a =
-          let pp = pp_expr table env tenv (Some Tunknown) [] a in
-          match static_type tenv a with
-          | Some t when erases_to_object t -> pp
-          | _ -> paren (str "(Object) " ++ pp)
-        in
+        let stl = List.map (pp_expr table env tenv (Some Tunknown) []) args' in
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
         pp_cast table ~expected ~actual:(Some Tunknown)
           (pp_fix ~fn_ty table env' (Some fn_ty :: tenv) 0
-             (Array.of_list (List.rev ids'), [|def|]) (List.map pp_arg args'))
+             (Array.of_list (List.rev ids'), [|def|]) stl)
     | MLapp (f,args') ->
         let arg_tys = match type_of_expr tenv f with
           | Some ft -> arg_types ft (List.length args')

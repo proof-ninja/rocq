@@ -127,49 +127,6 @@ static Function<duo, nat> duo_mix = d -> ((nat) $tfix2(go -> m -> acc ->
   : error("non-exhaustive match"))))
   ;
 
-public interface bool {
-public static class True implements bool {
-  
-  True() {
-    }
-    
-  }
-
-public static class False implements bool {
-  
-  False() {
-    }
-    
-  }
-
-}
-
-static Function<nat, Object> g = n ->
-  ((n instanceof nat.O) ? ((nat) new nat.S(((nat) new nat.O())))
-  : (n instanceof nat.S) ? ((bool) new bool.True())
-  : error("non-exhaustive match"))
-  ;
-
-static Function<duo, nat> dep_arg = d -> ((nat) fix2(f -> n -> x ->
-  ((n instanceof nat.O) ? ((nat) new nat.S(((nat) x)))
-  : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
-                           f.apply(n$).apply(g.apply(n$)))
-  : error("non-exhaustive match"))
-  , ((Object) ((nat) new nat.S(((nat) new nat.S(((nat)
-  new nat.O())))))), dfst.apply(d)))
-  ;
-
-static Function<duo, nat> lam_arg = d -> ((nat) fix2(go -> p -> n ->
-  ((n instanceof nat.O) ? ((Function<Object, Object>) p).apply(((nat)
-                                                        new nat.O()))
-  : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
-                           ((nat) new nat.S(((nat) go.apply(p).apply(n$)))))
-  : error("non-exhaustive match"))
-  , ((Object) ((Function<Object, Object>)(x -> ((nat)
-  new nat.S(((nat) x)))
-  ))), dfst.apply(d)))
-  ;
-
 static Function<Function<nat, nat>, Function<nat, nat>> app1 = h -> h
   ;
 
