@@ -62,14 +62,14 @@ static Function<bool, Object> dep = b ->
   : error("non-exhaustive match"))
   ;
 
-static Function<nat, nat> combine = n -> fix2(add -> m -> n0 ->
+static Function<nat, nat> combine = n -> ((nat) fix2(add -> m -> n0 ->
   (let(m, scrutinee ->
    (scrutinee instanceof nat.O) ? n0
    : (scrutinee instanceof nat.S) ? let(((nat.S)scrutinee).S0, m$ ->
                                     ((nat)
-                                    new nat.S(add.apply(m$).apply(n0))))
+                                    new nat.S(((nat) add.apply(m$).apply(n0)))))
    : error("non-exhaustive match")))
-  , dep.apply(((bool) new bool.True())), n)
+  , dep.apply(((bool) new bool.True())), ((Object) n)))
   ;
 
 static nat result = combine.apply(((nat) new nat.S(((nat) new nat.O()))));

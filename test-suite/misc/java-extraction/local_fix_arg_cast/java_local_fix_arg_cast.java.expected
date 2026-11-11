@@ -88,23 +88,23 @@ static Function<duo, Object> dsnd = d ->
   : error("non-exhaustive match"))
   ;
 
-static Function<duo, nat> duo_sum = d -> fix2(add -> m -> n ->
-  ((m instanceof nat.O) ? ((nat) n)
+static Function<duo, nat> duo_sum = d -> ((nat) fix2(add -> m -> n ->
+  ((m instanceof nat.O) ? n
   : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
-                           ((nat) new nat.S(add.apply(m$).apply(n))))
+                           ((nat) new nat.S(((nat) add.apply(m$).apply(n)))))
   : error("non-exhaustive match"))
   , ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo0, x -> x)
   : error("non-exhaustive match")), ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo1, y ->
                                                               y)
-  : error("non-exhaustive match")))
+  : error("non-exhaustive match"))))
   ;
 
-static Function<duo, nat> duo_sum$ = d -> fix2(add -> m -> n ->
-  ((m instanceof nat.O) ? ((nat) n)
+static Function<duo, nat> duo_sum$ = d -> ((nat) fix2(add -> m -> n ->
+  ((m instanceof nat.O) ? n
   : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
-                           ((nat) new nat.S(add.apply(m$).apply(n))))
+                           ((nat) new nat.S(((nat) add.apply(m$).apply(n)))))
   : error("non-exhaustive match"))
-  , dfst.apply(d), dsnd.apply(d))
+  , dfst.apply(d), dsnd.apply(d)))
   ;
 
 static Function<nat, nat> double0;
@@ -118,13 +118,13 @@ double0 = n ->
 ;
 }
 
-static Function<duo, nat> duo_mix = d -> $tfix2(go -> m -> acc ->
+static Function<duo, nat> duo_mix = d -> ((nat) $tfix2(go -> m -> acc ->
   ((m instanceof nat.O) ? $done2(double0.apply(((nat) acc)))
   : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
                            $next2(m$, ((nat) new nat.S(((nat) acc)))))
   : error("non-exhaustive match"))
   , dfst.apply(d), ((d instanceof duo.Duo) ? let(((duo.Duo)d).Duo1, y -> y)
-  : error("non-exhaustive match")))
+  : error("non-exhaustive match"))))
   ;
 
 public interface bool {
@@ -150,33 +150,36 @@ static Function<nat, Object> g = n ->
   : error("non-exhaustive match"))
   ;
 
-static nat dep_arg = fix2(f -> n -> _ ->
-  ((n instanceof nat.O) ? ((nat) new nat.O())
-  : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
-                           f.apply(n$).apply(g.apply(n$)))
-  : error("non-exhaustive match"))
-  , ((nat) new nat.S(((nat) new nat.S(((nat)
-  new nat.O()))))), ((Object) ((bool) new bool.True())));
-
-static nat dep_arg_read = fix2(f -> n -> x ->
+static Function<duo, nat> dep_arg = d -> ((nat) fix2(f -> n -> x ->
   ((n instanceof nat.O) ? ((nat) new nat.S(((nat) x)))
   : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
                            f.apply(n$).apply(g.apply(n$)))
   : error("non-exhaustive match"))
-  , ((nat) new nat.S(((nat) new nat.S(((nat)
-  new nat.O()))))), ((Object) ((bool) new bool.True())));
+  , ((Object) ((nat) new nat.S(((nat) new nat.S(((nat)
+  new nat.O())))))), dfst.apply(d)))
+  ;
+
+static Function<duo, nat> lam_arg = d -> ((nat) fix2(go -> p -> n ->
+  ((n instanceof nat.O) ? ((Function<Object, Object>) p).apply(((nat)
+                                                        new nat.O()))
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
+                           ((nat) new nat.S(((nat) go.apply(p).apply(n$)))))
+  : error("non-exhaustive match"))
+  , ((Object) ((Function<Object, Object>)(x -> ((nat)
+  new nat.S(((nat) x)))
+  ))), dfst.apply(d)))
+  ;
 
 static Function<Function<nat, nat>, Function<nat, nat>> app1 = h -> h
   ;
 
 static Function<nat, nat> escape = m -> fix2(f -> n -> acc ->
-  ((n instanceof nat.O) ? ((nat) acc)
+  ((n instanceof nat.O) ? acc
   : (n instanceof nat.S) ? let(((nat.S)n).S0, n$ ->
-                           app1.apply(((Function<nat, nat>) (Object) f
-                               .apply(n$))).apply(((nat)
-                                           new nat.S(((nat) acc)))))
+                           app1.apply(f.apply(n$)).apply(((nat)
+                                                  new nat.S(acc))))
   : error("non-exhaustive match"))
-  , ((Object) m), ((Object) ((nat) new nat.O())))
+  , m, ((nat) new nat.O()))
   ;
 
 }

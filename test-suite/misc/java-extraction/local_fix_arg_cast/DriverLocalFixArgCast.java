@@ -33,8 +33,9 @@ public class DriverLocalFixArgCast {
     check("duo_sum' 2 3", 5, java_local_fix_arg_cast.duo_sum$.apply(duo(2, 3)));
     check("duo_mix 2 3", 10, java_local_fix_arg_cast.duo_mix.apply(duo(2, 3)));
     check("duo_mix 0 1", 2, java_local_fix_arg_cast.duo_mix.apply(duo(0, 1)));
-    check("dep_arg", 0, java_local_fix_arg_cast.dep_arg);
-    check("dep_arg_read", 2, java_local_fix_arg_cast.dep_arg_read);
+    check("dep_arg", 2, java_local_fix_arg_cast.dep_arg.apply(
+        new java_local_fix_arg_cast.duo.Duo(new java_local_fix_arg_cast.bool.True(), new java_local_fix_arg_cast.bool.True())));
+    check("lam_arg 2", 3, java_local_fix_arg_cast.lam_arg.apply(duo(2, 5)));
     check("escape 3", 3, java_local_fix_arg_cast.escape.apply(intToNat(3)));
     check("escape 0", 0, java_local_fix_arg_cast.escape.apply(intToNat(0)));
   }

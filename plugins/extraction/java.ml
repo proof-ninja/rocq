@@ -619,89 +619,29 @@ let branch_tenv typ (ids, p, _) =
        | Some tys -> List.rev_map Option.make tys
        | None -> List.init n (fun _ -> None))
 
-(* The parameter types of a local fix [def] of type [ps -> r] that its
-   self calls agree with. A parameter typed from the fix's first argument
-   keeps that type only when every self call in the body passes a value of
-   the same Java type there: a parameter whose ML type is dependent
-   ([Tunknown]) may receive values of other types on later iterations, and
-   a cast to the first one would then fail at run time. A self call whose
-   argument there has an unknown type, or a use of the fix other than a
-   call with all its arguments (which could pass anything), sets the
-   parameter back to [Object]. The variables of the body are typed as the
-   printer types them, or left unknown, which only sets more parameters
-   back; a match (which [type_of_expr] leaves unknown) has the type all
-   its branches agree on, so that a [let] of a match on the way to a self
-   call keeps monomorphic code as it was. Setting one parameter back may
-   change the type of another call's argument, hence the iteration. *)
-let agreed_param_types tenv def ps r =
-  let k = List.length ps in
-  let body = snd (collect_lams (strip_magic def)) in
-  let rec arg_type tenv a = match a with
-    | MLcase (typ, _, pv) ->
-        let typ = expand_aliases typ in
-        let tys = Array.fold_right (fun (_, _, t as br) acc -> match t with
-            | MLexn _ | MLaxiom _ -> acc
-            | _ -> arg_type (branch_tenv typ br @ tenv) t :: acc) pv []
-        in
-        (match tys with
-         | Some t :: rest
-           when List.for_all (function Some t' -> erases_same t t' | None -> false) rest ->
-             Some t
-         | _ -> None)
-    | MLletin (_, a1, a2) -> arg_type (bound_type tenv a1 :: tenv) a2
-    | _ -> type_of_expr tenv a
-  and bound_type tenv a1 =
-    if is_bare_lambda a1 || has_tail_lambda a1 then let_bound_type tenv a1
-    else arg_type tenv a1
-  in
-  let check ps =
-    let ok = Array.of_list (List.map Option.has_some ps) in
-    let fn_ty = fn_type_of ps r in
-    let params = List.rev_map (fun p -> Some (Option.default Tunknown p)) ps in
-    let rec walk tenv d a =
-      let self = d + k + 1 in
-      let is_self f = match strip_magic f with
-        | MLrel n -> Int.equal n self
-        | _ -> false
+(* [type_of_expr], except that a match has the type all its branches
+   (but those that raise) agree on. A local fix's argument read through an
+   inlined accessor is such a match (see the [MLapp] case of [pp_expr]). *)
+let rec static_type tenv a = match a with
+  | MLcase (typ, _, pv) ->
+      let typ = expand_aliases typ in
+      let tys = Array.fold_right (fun (_, _, t as br) acc -> match t with
+          | MLexn _ | MLaxiom _ -> acc
+          | _ -> static_type (branch_tenv typ br @ tenv) t :: acc) pv []
       in
-      match a with
-      | MLapp (f, args) when is_self f ->
-          if Int.equal (List.length args) k then
-            List.iteri (fun i a ->
-                match List.nth ps i, arg_type tenv a with
-                | Some t, Some t' when erases_same t t' -> ()
-                | _ -> ok.(i) <- false) args
-          else Array.fill ok 0 k false;
-          List.iter (walk tenv d) args
-      | MLrel _ | MLmagic _ when is_self a -> Array.fill ok 0 k false
-      | MLapp (f, args) -> walk tenv d f; List.iter (walk tenv d) args
-      | MLlam (_, b) -> walk (None :: tenv) (d + 1) b
-      | MLletin (_, a1, a2) ->
-          walk tenv d a1; walk (bound_type tenv a1 :: tenv) (d + 1) a2
-      | MLcase (typ, t, pv) ->
-          let typ = expand_aliases typ in
-          walk tenv d t;
-          Array.iter (fun (ids, _, b as br) ->
-              walk (branch_tenv typ br @ tenv) (d + List.length ids) b) pv
-      | MLfix (_, ids, defs) ->
-          let n = Array.length ids in
-          let tenv' = List.init n (fun _ -> None) @ tenv in
-          Array.iter (walk tenv' (d + n)) defs
-      | MLcons (_, _, args) | MLtuple args -> List.iter (walk tenv d) args
-      | MLmagic a -> walk tenv d a
-      | MLparray (elems, def) -> Array.iter (walk tenv d) elems; walk tenv d def
-      | MLrel _ | MLglob _ | MLexn _ | MLdummy _ | MLaxiom _
-      | MLuint _ | MLfloat _ | MLstring _ -> ()
-    in
-    walk (params @ Some fn_ty :: tenv) 0 body;
-    List.mapi (fun i p -> if ok.(i) then p else None) ps
-  in
-  let rec fixpoint ps =
-    let ps' = check ps in
-    if List.equal (fun a b -> Option.has_some a = Option.has_some b) ps ps'
-    then ps else fixpoint ps'
-  in
-  fixpoint ps
+      (match tys with
+       | Some t :: rest
+         when List.for_all
+                (function Some t' -> erases_same t t' | None -> false) rest ->
+           Some t
+       | _ -> None)
+  | MLletin (_, a1, a2) ->
+      let ty =
+        if is_bare_lambda a1 || has_tail_lambda a1 then let_bound_type tenv a1
+        else static_type tenv a1
+      in
+      static_type (ty :: tenv) a2
+  | _ -> type_of_expr tenv a
 
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
@@ -806,40 +746,36 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
         apply_cast (type_of_expr tenv a) (pr_id id)
     | MLapp (MLfix (0, ids, [|def|]), args')
       when List.is_empty args && Option.has_some expected
-           && Int.equal (lambda_arity def) (List.length args') ->
-        (* A local fix applied to all its parameters, at a known result
-           type. The fix itself carries no type, so it is given the one its
-           application determines: each parameter at its argument's type,
-           [Object] where that is unknown (an inlined polymorphic accessor,
-           an application returning a type variable) or where the self
-           calls do not agree with it (see [agreed_param_types]), and the
-           expected result type. The body is printed at that type, so a parameter at
-           [Object] is cast where it meets a concrete type (see "Lambdas at
-           [Object]"), and the recursive calls cast their results through
-           the fix's binding. Otherwise [fixK]'s type arguments would be
-           inferred from an [Object] argument and clash with the result
-           type (#35). *)
-        let arg_tys =
-          List.map (fun a -> match type_of_expr tenv a with
-              | Some t when not (erases_to_object t) -> Some t
-              | _ -> None) args'
-        in
-        let res_ty = Option.get expected in
-        let param_tys = agreed_param_types tenv def arg_tys res_ty in
-        let fn_ty = fn_type_of param_tys res_ty in
-        (* An argument of a known type at a parameter set back to [Object]
-           is cast up to [Object], so that javac does not infer [fixK]'s
-           type argument from it: the self calls may pass other types. *)
-        let stl =
-          List.map2 (fun a (aty, pty) ->
-              let pp = pp_expr table env tenv pty [] a in
-              if Option.has_some aty && Option.is_empty pty
-              then paren (str "(Object) " ++ pp) else pp)
-            args' (List.combine arg_tys param_tys)
+           && Int.equal (lambda_arity def) (List.length args')
+           && List.exists (fun a -> match static_type tenv a with
+               | Some t -> erases_to_object t
+               | None -> false) args' ->
+        (* A local fix applied to all its parameters, one of its arguments
+           at [Object] (an inlined polymorphic accessor, an application
+           returning a type variable). javac would infer the [fixK] type
+           argument of that parameter as [Object] from it, while the body
+           uses the parameter at a concrete type, without a cast (#35). So
+           the fix is put at [Object] as a whole (see "Lambdas at
+           [Object]"): its parameters and its result are at [Object], the
+           body casts them where it uses them at a concrete type, every
+           argument is cast up to [Object] (a lambda first casting itself
+           to its function type) so that javac infers [Object] for them,
+           and the result is cast to the expected type. Typing the
+           parameters concretely instead would be unsound: the fix has no
+           type, and one of a dependent type may take values of other types
+           on other iterations. *)
+        let k = List.length args' in
+        let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
+        let pp_arg a =
+          let pp = pp_expr table env tenv (Some Tunknown) [] a in
+          match static_type tenv a with
+          | Some t when erases_to_object t -> pp
+          | _ -> paren (str "(Object) " ++ pp)
         in
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
-        pp_fix ~fn_ty table env' (Some fn_ty :: tenv) 0
-          (Array.of_list (List.rev ids'), [|def|]) stl
+        pp_cast table ~expected ~actual:(Some Tunknown)
+          (pp_fix ~fn_ty table env' (Some fn_ty :: tenv) 0
+             (Array.of_list (List.rev ids'), [|def|]) (List.map pp_arg args'))
     | MLapp (f,args') ->
         let arg_tys = match type_of_expr tenv f with
           | Some ft -> arg_types ft (List.length args')

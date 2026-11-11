@@ -23,7 +23,8 @@ Definition dep (b : bool) : (if b then nat else bool) :=
    [m] via instanceof/let, never as a fixed concrete type), so this
    documents that MLmagic itself was not what broke #35 -- kept as a
    regression lock, not as a demonstration that MLmagic needed a fixK-side
-   fix. *)
+   fix. Since #35's fix, the argument at [Object] puts the fix at [Object]
+   as a whole, as for #35's repro. *)
 Definition combine (n : nat) : nat :=
   (fix add (m n : nat) : nat := match m with O => n | S m' => S (add m' n) end)
     (dep true) n.

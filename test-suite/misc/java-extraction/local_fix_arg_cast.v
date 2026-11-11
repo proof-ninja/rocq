@@ -15,11 +15,12 @@ Definition ifst {A : Type} (d : duo A) : A := match d with Duo x _ => x end.
 Definition isnd {A : Type} (d : duo A) : A := match d with Duo _ y => y end.
 Extraction Inline ifst isnd.
 
-(* A local fix applied to all its parameters is given the function type its
-   application determines: a parameter whose argument is [Object] (the
-   field of a [duo nat] read by an inlined accessor, a call to a
-   polymorphic accessor) is at [Object], and is cast where it meets [nat]
-   in the body. Without this the [fix2] helper's type arguments were
+(* A local fix applied to all its parameters, one of its arguments at
+   [Object] (the field of a [duo nat] read by an inlined accessor, a call
+   to a polymorphic accessor), is put at [Object] as a whole: its
+   parameters and result are at [Object] and cast where the body uses them
+   at [nat], its arguments are cast up to [Object], and the result is cast
+   back to [nat]. Without this the [fix2] helper's type arguments were
    inferred from the [Object] arguments and clashed with the result type,
    failing javac (#35). *)
 
@@ -49,30 +50,30 @@ Definition F (n : nat) : Set := match n with O => nat | S _ => bool end.
 Definition g (n : nat) : F n := match n return F n with O => S O | S _ => true end.
 
 (* A parameter of a dependent type takes values of different Java types on
-   different iterations: [x] is first a [bool], then [g O = S O]. Typing it
-   from the first argument would cast the self call's argument to [bool],
-   failing at run time, so the self calls that do not agree with it set it
-   back to [Object], and the first argument is cast up to [Object] so that
-   javac does not infer [fix2]'s type argument from it. [n] keeps [nat]. *)
-Definition dep_arg : nat :=
-  (fix f (n : nat) (x : F n) {struct n} : nat :=
-     match n with O => O | S n' => f n' (g n') end) (S (S O)) true.
-
-(* The same, reading [x] back at [nat] where its type is known to be. *)
-Definition dep_arg_read : nat :=
+   different iterations: [x] is first a [bool], then [g O = S O], read
+   back at [nat]. At [Object] it needs no cast but where its type is
+   known. *)
+Definition dep_arg (d : duo bool) : nat :=
   (fix f (n : nat) (x : F n) {struct n} : nat :=
      match n return F n -> nat with
      | O => fun x => S x
      | S n' => fun _ => f n' (g n')
-     end x) (S (S O)) true.
+     end x) (S (S O)) (dfst d).
+
+(* A lambda argument casts itself to its function type before the cast up
+   to [Object]; the body casts the parameter back to apply it. *)
+Definition lam_arg (d : duo nat) : nat :=
+  (fix go (p : nat -> nat) (n : nat) {struct n} : nat :=
+     match n with O => p O | S n' => S (go p n') end)
+    (fun x => S x) (dfst d).
 
 Definition app1 (h : nat -> nat) (y : nat) : nat := h y.
 
-(* A fix used other than in a call with all its arguments could be passed
-   anything, so all its parameters are at [Object]. *)
+(* No argument at [Object]: printed as before, even though the fix
+   escapes. *)
 Definition escape (m : nat) : nat :=
   (fix f (n acc : nat) {struct n} : nat :=
      match n with O => acc | S n' => app1 (f n') (S acc) end) m O.
 
 Extraction "java_local_fix_arg_cast.java"
-  duo_sum duo_sum' duo_mix dep_arg dep_arg_read escape.
+  duo_sum duo_sum' duo_mix dep_arg lam_arg escape.
