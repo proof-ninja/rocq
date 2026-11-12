@@ -11,16 +11,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  case-collisions:
+    name: Case collisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 🔭 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔠 Check paths differing only in case
+        run: dev/tools/check-case-collisions.sh
+
   build:
     strategy:
       matrix:
         include:
-          - name: macOS
-            os: macos-latest
-            ocaml: 4.14
-            test_disabled:
-            # We exclude the coq-core package
-            packages: ./coqide-server.opam ./rocq*.opam
+          # macOS runners are too scarce to get CI through; disabled for now.
+          # Case-insensitive file system clashes are covered by the
+          # case-collisions job and by the javac class-file check in
+          # test-suite/misc/java-extraction/run-case.sh.
+          # - name: macOS
+          #   os: macos-latest
+          #   ocaml: 4.14
+          #   test_disabled:
+          #   # We exclude the coq-core package
+          #   packages: ./coqide-server.opam ./rocq*.opam
           - name: Linux (latest OCaml)
             os: ubuntu-latest
             ocaml: 5.4
