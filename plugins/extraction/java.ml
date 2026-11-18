@@ -596,17 +596,26 @@ and let_bound_type tenv a1 =
   else if has_tail_lambda a1 then Some Tunknown
   else type_of_expr tenv a1
 
-(* The types of the [n] fields a branch pattern [p] of a match on [typ]
-   binds, in field order: the constructor's declared field types
-   instantiated at the scrutinee's type arguments, as [pp_one_pat] types
-   the bound variables. [None] when they are not known. *)
-let pat_field_types typ p n = match p, typ with
-  | Pusual r, Tglob (_, targs) ->
+(* The declared types of the [n] fields a branch pattern [p] binds, in
+   field order, over the inductive's type variables: the static Java types
+   of the field accesses. [None] when they are not known. *)
+let pat_declared_types p n = match p with
+  | Pusual r ->
       (match constructor_arg_types r with
-       | Some tys when Int.equal (List.length tys) n ->
-           Some (List.map (type_subst_list targs) tys)
+       | Some tys when Int.equal (List.length tys) n -> Some tys
        | _ -> None)
   | _ -> None
+
+(* The declared field types [decl] of a branch pattern instantiated at the
+   type arguments of the scrutinee's type [typ], as [pp_one_pat] types the
+   bound variables. *)
+let inst_field_types typ decl = match decl, typ with
+  | Some tys, Tglob (_, targs) -> Some (List.map (type_subst_list targs) tys)
+  | _ -> None
+
+(* The types of the [n] fields a branch pattern [p] of a match on [typ]
+   binds, in field order. [None] when they are not known. *)
+let pat_field_types typ p n = inst_field_types typ (pat_declared_types p n)
 
 (* The types of the variables a branch [(ids, p, _)] of a match on [typ]
    binds, innermost first, as the printer types them. *)
@@ -991,14 +1000,8 @@ and pp_one_pat ~tail table env tenv typ expected exp (ids,p,t) =
      Java type of the field access) and their instantiation at the
      scrutinee's type arguments. Casting the field access in the [let]
      binding also types the bound variable, via [let]'s inference. *)
-  let sig_tys = match p with
-    | Pusual r ->
-        (match constructor_arg_types r with
-         | Some tys when Int.equal (List.length tys) n -> Some tys
-         | _ -> None)
-    | _ -> None
-  in
-  let inst_tys = pat_field_types typ p n in
+  let sig_tys = pat_declared_types p n in
+  let inst_tys = inst_field_types typ sig_tys in
   let field_ty j = match inst_tys with
     | Some tys -> Some (List.nth tys j)
     | None -> None
