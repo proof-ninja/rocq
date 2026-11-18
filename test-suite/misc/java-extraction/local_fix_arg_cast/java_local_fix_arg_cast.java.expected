@@ -20,6 +20,31 @@ a2) {
   return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
 }
 
+static abstract class $Step1<A1, R> {}
+static final class $Done1<A1, R> extends $Step1<A1, R> {
+  final R value;
+  $Done1(R value) { this.value = value; }
+}
+static final class $Next1<A1, R> extends $Step1<A1, R> {
+  final A1 a1;
+  $Next1(A1 a1) { this.a1 = a1; }
+}
+static <A1, R> $Step1<A1, R> $done1(R value) { return new $Done1<>(value); }
+static <A1, R> $Step1<A1, R> $next1(A1 a1) { return new $Next1<>(a1); }
+static <A1, R> R $run1(Function<A1, $Step1<A1, R>> body, A1 a1) {
+  while (true) {
+    $Step1<A1, R> s = body.apply(a1);
+    if (s instanceof $Next1<A1, R> n) { a1 = n.a1; }
+    else return (($Done1<A1, R>) s).value;
+  }
+}
+static <A1, R> Function<A1, R> $loop1(Function<A1, $Step1<A1, R>> body) {
+  return a1 -> $run1(body, a1);
+}
+static <A1, R> R $tfix1(Function<Function<A1, R>, Function<A1, $Step1<A1, R>>> gen, A1 a1) {
+  return $run1(gen.apply(x1 -> $tfix1(gen, x1)), a1);
+}
+
 static abstract class $Step2<A1, A2, R> {}
 static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
   final R value;
@@ -137,6 +162,23 @@ static Function<nat, nat> escape = m -> fix2(f -> n -> acc ->
                                                   new nat.S(acc))))
   : error("non-exhaustive match"))
   , m, ((nat) new nat.O()))
+  ;
+
+static Function<duo, nat> nested = d -> $tfix1(outer -> m ->
+  ((m instanceof nat.O) ? $done1(((nat) new nat.O()))
+  : (m instanceof nat.S) ? let(((nat.S)m).S0, m$ ->
+                           ((m$ instanceof nat.O) ? $next1(m$)
+                           : (m$ instanceof nat.S) ? $done1(fix2(add -> a -> b ->
+                               ((a instanceof nat.O) ? b
+                               : (a instanceof nat.S) ? let(((nat.S)a).S0, a$ ->
+                                                        ((nat)
+                                                        new nat.S(add
+                                                        .apply(a$).apply(b))))
+                               : error("non-exhaustive match"))
+                               , m$, m$))
+                           : error("non-exhaustive match")))
+  : error("non-exhaustive match"))
+  , dfst.apply(d))
   ;
 
 }

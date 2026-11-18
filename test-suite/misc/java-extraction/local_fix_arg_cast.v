@@ -50,5 +50,21 @@ Definition escape (m : nat) : nat :=
   (fix f (n acc : nat) {struct n} : nat :=
      match n with O => acc | S n' => app1 (f n') (S acc) end) m O.
 
+(* A body containing a local fix: printed as any other local fix. Put at
+   [Object], the outer fix would give its body the result type [Object],
+   from which the inner [add]'s result type is inferred, and the inner self
+   call's result, used at [nat], would not be cast. *)
+Definition nested (d : duo nat) : nat :=
+  (fix outer (m : nat) : nat :=
+     match m with
+     | O => O
+     | S m' =>
+       match m' with
+       | O => outer m'
+       | S _ => (fix add (a b : nat) : nat :=
+                   match a with O => b | S a' => S (add a' b) end) m' m'
+       end
+     end) (dfst d).
+
 Extraction "java_local_fix_arg_cast.java"
-  duo_sum duo_sum' duo_mix escape.
+  duo_sum duo_sum' duo_mix escape nested.

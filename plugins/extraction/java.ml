@@ -644,6 +644,13 @@ let rec static_type tenv a = match a with
       static_type (ty :: tenv) a2
   | _ -> type_of_expr tenv a
 
+(* Whether [a] contains a local fix anywhere. *)
+let rec contains_fix a = match a with
+  | MLfix _ -> true
+  | _ ->
+      (try ast_iter (fun b -> if contains_fix b then raise Exit) a; false
+       with Exit -> true)
+
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
    would sprinkle casts over monomorphic code (whose output must not
@@ -748,6 +755,7 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
     | MLapp (MLfix (0, ids, [|def|]), args')
       when List.is_empty args && Option.has_some expected
            && Int.equal (lambda_arity def) (List.length args')
+           && not (contains_fix def)
            && List.for_all (fun a -> match static_type tenv a with
                | Some t -> erases_to_object t
                | None -> false) args' ->
@@ -765,7 +773,11 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
            iterations. With an argument of another type, javac's inference
            types its parameter, which putting it at [Object] would lose
            where the body uses it with no expected type, so such a fix is
-           printed as any other. *)
+           printed as any other. So is a fix whose body contains a local
+           fix: the inner fix's result type would be inferred from the
+           outer body's, [Object], and its self calls, which have no type,
+           would not be cast back where their results are used at a
+           concrete type. *)
         let k = List.length args' in
         let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
         let stl = List.map (pp_expr table env tenv (Some Tunknown) []) args' in

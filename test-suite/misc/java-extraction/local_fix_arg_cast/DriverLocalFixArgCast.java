@@ -35,5 +35,7 @@ public class DriverLocalFixArgCast {
     check("duo_mix 0 1", 2, java_local_fix_arg_cast.duo_mix.apply(duo(0, 1)));
     check("escape 3", 3, java_local_fix_arg_cast.escape.apply(intToNat(3)));
     check("escape 0", 0, java_local_fix_arg_cast.escape.apply(intToNat(0)));
+    check("nested 3", 4, java_local_fix_arg_cast.nested.apply(duo(3, 3)));
+    check("nested 1", 0, java_local_fix_arg_cast.nested.apply(duo(1, 0)));
   }
 }
