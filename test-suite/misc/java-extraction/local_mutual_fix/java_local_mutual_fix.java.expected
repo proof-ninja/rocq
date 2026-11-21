@@ -1,0 +1,603 @@
+import java.util.function.Function;
+
+class java_local_mutual_fix {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, R> Function<A1, R> fix0(Function<Function<A1, R>, Function<A1, R>> gen) {
+  return a1 -> fix1(gen, a1);
+}
+
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
+static abstract class $Step2<A1, A2, R> {}
+static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final R value;
+  $Done2(R value) { this.value = value; }
+}
+static final class $Next2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final A1 a1; final A2 a2;
+  $Next2(A1 a1, A2 a2) { this.a1 = a1; this.a2 = a2; }
+}
+static <A1, A2, R> $Step2<A1, A2, R> $done2(R value) { return new $Done2<>(value); }
+static <A1, A2, R> $Step2<A1, A2, R> $next2(A1 a1, A2 a2) { return new $Next2<>(a1, a2); }
+static <A1, A2, R> R $run2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body, A1 a1, A2 a2) {
+  while (true) {
+    $Step2<A1, A2, R> s = body.apply(a1).apply(a2);
+    if (s instanceof $Next2<A1, A2, R> n) { a1 = n.a1; a2 = n.a2; }
+    else return (($Done2<A1, A2, R>) s).value;
+  }
+}
+static <A1, A2, R> Function<A1, Function<A2, R>> $loop2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body) {
+  return a1 -> a2 -> $run2(body, a1, a2);
+}
+static <A1, A2, R> R $tfix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, $Step2<A1, A2, R>>>> gen, A1 a1, A2 a2) {
+  return $run2(gen.apply(x1 -> x2 -> $tfix2(gen, x1, x2)), a1, a2);
+}
+
+static abstract class $Step3<A1, A2, A3, R> {}
+static final class $Done3<A1, A2, A3, R> extends $Step3<A1, A2, A3, R> {
+  final R value;
+  $Done3(R value) { this.value = value; }
+}
+static final class $Next3<A1, A2, A3, R> extends $Step3<A1, A2, A3, R> {
+  final A1 a1; final A2 a2; final A3 a3;
+  $Next3(A1 a1, A2 a2, A3 a3) { this.a1 = a1; this.a2 = a2; this.a3 = a3; }
+}
+static <A1, A2, A3, R> $Step3<A1, A2, A3, R> $done3(R value) { return new $Done3<>(value); }
+static <A1, A2, A3, R> $Step3<A1, A2, A3, R> $next3(A1 a1, A2 a2, A3 a3) { return new $Next3<>(a1, a2, a3); }
+static <A1, A2, A3, R> R $run3(Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>> body, A1 a1, A2 a2, A3 a3) {
+  while (true) {
+    $Step3<A1, A2, A3, R> s = body.apply(a1).apply(a2).apply(a3);
+    if (s instanceof $Next3<A1, A2, A3, R> n) { a1 = n.a1; a2 = n.a2; a3 = n.a3; }
+    else return (($Done3<A1, A2, A3, R>) s).value;
+  }
+}
+static <A1, A2, A3, R> Function<A1, Function<A2, Function<A3, R>>> $loop3(Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>> body) {
+  return a1 -> a2 -> a3 -> $run3(body, a1, a2, a3);
+}
+static <A1, A2, A3, R> R $tfix3(Function<Function<A1, Function<A2, Function<A3, R>>>, Function<A1, Function<A2, Function<A3, $Step3<A1, A2, A3, R>>>>> gen, A1 a1, A2 a2, A3 a3) {
+  return $run3(gen.apply(x1 -> x2 -> x3 -> $tfix3(gen, x1, x2, x3)), a1, a2, a3);
+}
+
+public interface nat {
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+}
+
+public interface bool {
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+}
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = n -> m ->
+((n instanceof nat.O) ? m
+: (n instanceof nat.S) ? let(((nat.S)n).S0, p ->
+                         ((nat) new nat.S(add.apply(p).apply(m))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<Function<nat, bool>, Function<nat, bool>> app = p -> p
+  ;
+
+static Function<bool, Function<nat, bool>> even = b -> fix0(even0 -> n ->
+  ((n instanceof nat.O) ? b
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           fix1(odd0 -> n0 ->
+                           ((n0 instanceof nat.O) ? ((b instanceof bool.True) ? ((bool)
+                                                       new bool.False())
+                              : (b instanceof bool.False) ? ((bool)
+                                  new bool.True())
+                              : error("non-exhaustive match"))
+                           : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                     even0.apply(m0))
+                           : error("non-exhaustive match"))
+                           , m))
+  : error("non-exhaustive match"))
+  )
+  ;
+
+static Function<bool, Function<nat, bool>> odd = b -> fix0(odd0 -> n ->
+  ((n instanceof nat.O) ? ((b instanceof bool.True) ? ((bool)
+                             new bool.False())
+     : (b instanceof bool.False) ? ((bool) new bool.True())
+     : error("non-exhaustive match"))
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           fix1(even0 -> n0 ->
+                           ((n0 instanceof nat.O) ? b
+                           : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                     odd0.apply(m0))
+                           : error("non-exhaustive match"))
+                           , m))
+  : error("non-exhaustive match"))
+  )
+  ;
+
+static Function<nat, Function<nat, Function<nat, nat>>> f = k ->
+  fix0(f0 -> n -> acc ->
+  ((n instanceof nat.O) ? add.apply(k).apply(acc)
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           (let(fix1(g0 -> n0 ->
+                            ((n0 instanceof nat.O) ? ((bool) new bool.True())
+                            : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                      (let(f0.apply(m0)
+                                                             .apply(((nat)
+                                                             new nat.O())), scrutinee ->
+                                                       (scrutinee instanceof nat.O) ? ((bool)
+                                                         new bool.False())
+                                                       : (scrutinee instanceof nat.S) ? 
+                                                           let(((nat.S)scrutinee).S0, n1 ->
+                                                           ((n1 instanceof nat.O) ? ((bool)
+                                                              new bool.True())
+                                                           : (n1 instanceof nat.S) ? 
+                                                               let(((nat.S)n1).S0, p ->
+                                                               even.apply(((bool)
+                                                                   new bool.True()))
+                                                                   .apply(p))
+                                                           : error("non-exhaustive match")))
+                                                       : error("non-exhaustive match"))))
+                            : error("non-exhaustive match"))
+                            , m), scrutinee ->
+                            (scrutinee instanceof bool.True) ? f0.apply(m)
+                                                                 .apply(((nat)
+                                                                 new nat.S(acc)))
+                            : (scrutinee instanceof bool.False) ? $tfix3(h0 -> c -> n0 -> acc0 ->
+                                ((n0 instanceof nat.O) ? $done3(acc0)
+                                : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                          ((c instanceof bool.True) ? $done3(f0
+                                                             .apply(m0)
+                                                             .apply(((nat)
+                                                             new nat.S(((nat)
+                                                             new nat.S(acc0))))))
+                                                          : (c instanceof bool.False) ? (
+                                                              let(app
+                                                              .apply(fix0(g0 -> n1 ->
+                                                              ((n1 instanceof nat.O) ? ((bool)
+                                                                 new bool.True())
+                                                              : (n1 instanceof nat.S) ? 
+                                                                  let(((nat.S)n1).S0, m1 ->
+                                                                  (let(f0
+                                                                   .apply(m1)
+                                                                   .apply(((nat)
+                                                                   new nat.O())), scrutinee0 ->
+                                                                   (scrutinee0 instanceof nat.O) ? ((bool)
+                                                                    new bool.False())
+                                                                   : 
+                                                                   (scrutinee0 instanceof nat.S) ? 
+                                                                    let(((nat.S)scrutinee0).S0, n2 ->
+                                                                    (
+                                                                    (n2 instanceof nat.O) ? ((bool)
+                                                                    new bool.True())
+                                                                    : 
+                                                                    (n2 instanceof nat.S) ? 
+                                                                    let(((nat.S)n2).S0, p ->
+                                                                    even
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(p))
+                                                                    : 
+                                                                    error("non-exhaustive match")))
+                                                                   : 
+                                                                   error("non-exhaustive match"))))
+                                                              : error("non-exhaustive match"))
+                                                              )).apply(m0), scrutinee0 ->
+                                                              (scrutinee0 instanceof bool.True) ? $next3(c, m0, ((nat)
+                                                                new nat.S(acc0)))
+                                                              : (scrutinee0 instanceof bool.False) ? $next3(c, m0, acc0)
+                                                              : error("non-exhaustive match")))
+                                                          : error("non-exhaustive match")))
+                                : error("non-exhaustive match"))
+                                , ((bool)
+                                new bool.True()), m, acc)
+                            : error("non-exhaustive match"))))
+  : error("non-exhaustive match"))
+  )
+  ;
+
+static Function<nat, Function<nat, bool>> g = k -> fix0(g0 -> n ->
+  ((n instanceof nat.O) ? ((bool) new bool.True())
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           (let($tfix2(f0 -> n0 -> acc ->
+                            ((n0 instanceof nat.O) ? $done2(add.apply(k)
+                                                               .apply(acc))
+                            : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                      (let(g0.apply(m0), scrutinee ->
+                                                       (scrutinee instanceof bool.True) ? $next2(m0, ((nat)
+                                                         new nat.S(acc)))
+                                                       : (scrutinee instanceof bool.False) ? $done2($tfix3(h0 -> c -> n1 -> acc0 ->
+                                                           ((n1 instanceof nat.O) ? $done3(acc0)
+                                                           : (n1 instanceof nat.S) ? 
+                                                               let(((nat.S)n1).S0, m1 ->
+                                                               ((c instanceof bool.True) ? $done3($tfix2(f1 -> n2 -> acc1 ->
+                                                                  ((n2 instanceof nat.O) ? $done2(add
+                                                                    .apply(k)
+                                                                    .apply(acc1))
+                                                                  : (n2 instanceof nat.S) ? 
+                                                                    let(((nat.S)n2).S0, m2 ->
+                                                                    (
+                                                                    let(g0
+                                                                    .apply(m2), scrutinee0 ->
+                                                                    (scrutinee0 instanceof bool.True) ? $next2(m2, ((nat)
+                                                                    new nat.S(acc1)))
+                                                                    : 
+                                                                    (scrutinee0 instanceof bool.False) ? $done2(h0
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(m2)
+                                                                    .apply(acc1))
+                                                                    : 
+                                                                    error("non-exhaustive match"))))
+                                                                  : error("non-exhaustive match"))
+                                                                  , m1, ((nat)
+                                                                  new nat.S(((nat)
+                                                                  new nat.S(acc0))))))
+                                                               : (c instanceof bool.False) ? (
+                                                                   let(app
+                                                                   .apply(g0)
+                                                                   .apply(m1), scrutinee0 ->
+                                                                   (scrutinee0 instanceof bool.True) ? $next3(c, m1, ((nat)
+                                                                    new nat.S(acc0)))
+                                                                   : 
+                                                                   (scrutinee0 instanceof bool.False) ? $next3(c, m1, acc0)
+                                                                   : 
+                                                                   error("non-exhaustive match")))
+                                                               : error("non-exhaustive match")))
+                                                           : error("non-exhaustive match"))
+                                                           , ((bool)
+                                                           new bool.True()), m0, acc))
+                                                       : error("non-exhaustive match"))))
+                            : error("non-exhaustive match"))
+                            , m, ((nat)
+                            new nat.O())), scrutinee ->
+                            (scrutinee instanceof nat.O) ? ((bool)
+                              new bool.False())
+                            : (scrutinee instanceof nat.S) ? let(((nat.S)scrutinee).S0, n0 ->
+                                                             ((n0 instanceof nat.O) ? ((bool)
+                                                                new bool.True())
+                                                             : (n0 instanceof nat.S) ? 
+                                                                 let(((nat.S)n0).S0, p ->
+                                                                 even
+                                                                 .apply(((bool)
+                                                                 new bool.True()))
+                                                                 .apply(p))
+                                                             : error("non-exhaustive match")))
+                            : error("non-exhaustive match"))))
+  : error("non-exhaustive match"))
+  )
+  ;
+
+static Function<nat, Function<bool, Function<nat, Function<nat, nat>>>>
+  h = k -> fix0(h0 -> c -> n -> acc ->
+  ((n instanceof nat.O) ? acc
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           ((c instanceof bool.True) ? $tfix2(f0 -> n0 -> acc0 ->
+                              ((n0 instanceof nat.O) ? $done2(add.apply(k)
+                                                                 .apply(acc0))
+                              : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                        (let(fix1(g0 -> n1 ->
+                                                         ((n1 instanceof nat.O) ? ((bool)
+                                                            new bool.True())
+                                                         : (n1 instanceof nat.S) ? 
+                                                             let(((nat.S)n1).S0, m1 ->
+                                                             (let($tfix2(f1 -> n2 -> acc1 ->
+                                                              ((n2 instanceof nat.O) ? $done2(add
+                                                                 .apply(k)
+                                                                 .apply(acc1))
+                                                              : (n2 instanceof nat.S) ? 
+                                                                  let(((nat.S)n2).S0, m2 ->
+                                                                  (let(g0
+                                                                   .apply(m2), scrutinee ->
+                                                                   (scrutinee instanceof bool.True) ? $next2(m2, ((nat)
+                                                                    new nat.S(acc1)))
+                                                                   : 
+                                                                   (scrutinee instanceof bool.False) ? $done2(h0
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(m2)
+                                                                    .apply(acc1))
+                                                                   : 
+                                                                   error("non-exhaustive match"))))
+                                                              : error("non-exhaustive match"))
+                                                              , m1, ((nat)
+                                                              new nat.O())), scrutinee ->
+                                                              (scrutinee instanceof nat.O) ? ((bool)
+                                                                new bool.False())
+                                                              : (scrutinee instanceof nat.S) ? 
+                                                                  let(((nat.S)scrutinee).S0, n2 ->
+                                                                  ((n2 instanceof nat.O) ? ((bool)
+                                                                    new bool.True())
+                                                                  : (n2 instanceof nat.S) ? 
+                                                                    let(((nat.S)n2).S0, p ->
+                                                                    even
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(p))
+                                                                  : error("non-exhaustive match")))
+                                                              : error("non-exhaustive match"))))
+                                                         : error("non-exhaustive match"))
+                                                         , m0), scrutinee ->
+                                                         (scrutinee instanceof bool.True) ? $next2(m0, ((nat)
+                                                           new nat.S(acc0)))
+                                                         : (scrutinee instanceof bool.False) ? $done2(h0
+                                                             .apply(((bool)
+                                                             new bool.True()))
+                                                             .apply(m0)
+                                                             .apply(acc0))
+                                                         : error("non-exhaustive match"))))
+                              : error("non-exhaustive match"))
+                              , m, ((nat)
+                              new nat.S(((nat)
+                              new nat.S(acc)))))
+                           : (c instanceof bool.False) ? (let(app.apply(fix0(g0 -> n0 ->
+                                                                 ((n0 instanceof nat.O) ? ((bool)
+                                                                    new bool.True())
+                                                                 : (n0 instanceof nat.S) ? 
+                                                                    let(((nat.S)n0).S0, m0 ->
+                                                                    (
+                                                                    let($tfix2(f0 -> n1 -> acc0 ->
+                                                                    (
+                                                                    (n1 instanceof nat.O) ? $done2(add
+                                                                    .apply(k)
+                                                                    .apply(acc0))
+                                                                    : 
+                                                                    (n1 instanceof nat.S) ? 
+                                                                    let(((nat.S)n1).S0, m1 ->
+                                                                    (
+                                                                    let(g0
+                                                                    .apply(m1), scrutinee ->
+                                                                    (scrutinee instanceof bool.True) ? $next2(m1, ((nat)
+                                                                    new nat.S(acc0)))
+                                                                    : 
+                                                                    (scrutinee instanceof bool.False) ? $done2(h0
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(m1)
+                                                                    .apply(acc0))
+                                                                    : 
+                                                                    error("non-exhaustive match"))))
+                                                                    : 
+                                                                    error("non-exhaustive match"))
+                                                                    , m0, ((nat)
+                                                                    new nat.O())), scrutinee ->
+                                                                    (scrutinee instanceof nat.O) ? ((bool)
+                                                                    new bool.False())
+                                                                    : 
+                                                                    (scrutinee instanceof nat.S) ? 
+                                                                    let(((nat.S)scrutinee).S0, n1 ->
+                                                                    (
+                                                                    (n1 instanceof nat.O) ? ((bool)
+                                                                    new bool.True())
+                                                                    : 
+                                                                    (n1 instanceof nat.S) ? 
+                                                                    let(((nat.S)n1).S0, p ->
+                                                                    even
+                                                                    .apply(((bool)
+                                                                    new bool.True()))
+                                                                    .apply(p))
+                                                                    : 
+                                                                    error("non-exhaustive match")))
+                                                                    : 
+                                                                    error("non-exhaustive match"))))
+                                                                 : error("non-exhaustive match"))
+                                                                 )).apply(m), scrutinee ->
+                                                          (scrutinee instanceof bool.True) ? h0
+                                                            .apply(c)
+                                                            .apply(m)
+                                                            .apply(((nat)
+                                                            new nat.S(acc)))
+                                                          : (scrutinee instanceof bool.False) ? h0
+                                                              .apply(c)
+                                                              .apply(m)
+                                                              .apply(acc)
+                                                          : error("non-exhaustive match")))
+                           : error("non-exhaustive match")))
+  : error("non-exhaustive match"))
+  )
+  ;
+
+static Function<nat, Function<nat, Function<nat, nat>>> four = x -> y ->
+  let(add.apply(x).apply(y), z ->
+  fix0(a -> n ->
+  ((n instanceof nat.O) ? z
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           fix1(b -> n0 ->
+                           ((n0 instanceof nat.O) ? x
+                           : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                     add.apply(y).apply(fix1(c -> n1 ->
+                                                                 ((n1 instanceof nat.O) ? y
+                                                                 : (n1 instanceof nat.S) ? 
+                                                                    let(((nat.S)n1).S0, m1 ->
+                                                                    fix2(d -> n2 -> r ->
+                                                                    (
+                                                                    (n2 instanceof nat.O) ? add
+                                                                    .apply(r)
+                                                                    .apply(z)
+                                                                    : 
+                                                                    (n2 instanceof nat.S) ? 
+                                                                    let(((nat.S)n2).S0, m2 ->
+                                                                    (
+                                                                    let(a
+                                                                    .apply(m2), scrutinee ->
+                                                                    (scrutinee instanceof nat.O) ? fix1(b0 -> n3 ->
+                                                                    ((n3 instanceof nat.O) ? x
+                                                                    : (n3 instanceof nat.S) ? 
+                                                                    let(((nat.S)n3).S0, m3 ->
+                                                                    add
+                                                                    .apply(y)
+                                                                    .apply(fix1(c0 -> n4 ->
+                                                                    (
+                                                                    (n4 instanceof nat.O) ? y
+                                                                    : 
+                                                                    (n4 instanceof nat.S) ? 
+                                                                    let(((nat.S)n4).S0, m4 ->
+                                                                    d
+                                                                    .apply(m4)
+                                                                    .apply(z))
+                                                                    : 
+                                                                    error("non-exhaustive match"))
+                                                                    , m3)))
+                                                                    : error("non-exhaustive match"))
+                                                                    , m2)
+                                                                    : 
+                                                                    (scrutinee instanceof nat.S) ? add
+                                                                    .apply(r)
+                                                                    .apply(fix1(c0 -> n3 ->
+                                                                    (
+                                                                    (n3 instanceof nat.O) ? y
+                                                                    : 
+                                                                    (n3 instanceof nat.S) ? 
+                                                                    let(((nat.S)n3).S0, m3 ->
+                                                                    d
+                                                                    .apply(m3)
+                                                                    .apply(z))
+                                                                    : 
+                                                                    error("non-exhaustive match"))
+                                                                    , m2))
+                                                                    : 
+                                                                    error("non-exhaustive match"))))
+                                                                    : 
+                                                                    error("non-exhaustive match"))
+                                                                    , m1, z))
+                                                                 : error("non-exhaustive match"))
+                                                                 , m0)))
+                           : error("non-exhaustive match"))
+                           , m))
+  : error("non-exhaustive match"))
+  ))
+  ;
+
+static Function<nat, Function<nat, Function<nat, Function<nat, nat>>>>
+  four_d = x -> y ->
+  let(add.apply(x).apply(y), z ->
+  fix0(d -> n -> r ->
+  ((n instanceof nat.O) ? add.apply(r).apply(z)
+  : (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                           (let(fix1(a -> n0 ->
+                            ((n0 instanceof nat.O) ? z
+                            : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                      fix1(b -> n1 ->
+                                                      ((n1 instanceof nat.O) ? x
+                                                      : (n1 instanceof nat.S) ? 
+                                                          let(((nat.S)n1).S0, m1 ->
+                                                          add.apply(y)
+                                                             .apply(fix1(c -> n2 ->
+                                                             ((n2 instanceof nat.O) ? y
+                                                             : (n2 instanceof nat.S) ? 
+                                                                 let(((nat.S)n2).S0, m2 ->
+                                                                 d.apply(m2)
+                                                                  .apply(z))
+                                                             : error("non-exhaustive match"))
+                                                             , m1)))
+                                                      : error("non-exhaustive match"))
+                                                      , m0))
+                            : error("non-exhaustive match"))
+                            , m), scrutinee ->
+                            (scrutinee instanceof nat.O) ? fix1(b -> n0 ->
+                              ((n0 instanceof nat.O) ? x
+                              : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m0 ->
+                                                        add.apply(y).apply(fix1(c -> n1 ->
+                                                                    (
+                                                                    (n1 instanceof nat.O) ? y
+                                                                    : 
+                                                                    (n1 instanceof nat.S) ? 
+                                                                    let(((nat.S)n1).S0, m1 ->
+                                                                    d
+                                                                    .apply(m1)
+                                                                    .apply(z))
+                                                                    : 
+                                                                    error("non-exhaustive match"))
+                                                                    , m0)))
+                              : error("non-exhaustive match"))
+                              , m)
+                            : (scrutinee instanceof nat.S) ? add.apply(r)
+                                                                .apply(fix1(c -> n0 ->
+                                                                ((n0 instanceof nat.O) ? y
+                                                                : (n0 instanceof nat.S) ? 
+                                                                    let(((nat.S)n0).S0, m0 ->
+                                                                    d
+                                                                    .apply(m0)
+                                                                    .apply(z))
+                                                                : error("non-exhaustive match"))
+                                                                , m))
+                            : error("non-exhaustive match"))))
+  : error("non-exhaustive match"))
+  ))
+  ;
+
+static Function<nat, nat> top1;
+static Function<nat, nat> top2;
+static {
+top1 = n ->
+((n instanceof nat.O) ? ((nat) new nat.O())
+: (n instanceof nat.S) ? let(((nat.S)n).S0, m ->
+                         fix1(q -> k ->
+                         ((k instanceof nat.O) ? m
+                         : (k instanceof nat.S) ? let(((nat.S)k).S0, j ->
+                                                  fix1(p -> k0 ->
+                                                  ((k0 instanceof nat.O) ? top2
+                                                     .apply(m)
+                                                  : (k0 instanceof nat.S) ? 
+                                                      let(((nat.S)k0).S0, j0 ->
+                                                      q.apply(j0))
+                                                  : error("non-exhaustive match"))
+                                                  , j))
+                         : error("non-exhaustive match"))
+                         , m))
+: error("non-exhaustive match"))
+;
+top2 = n ->
+((n instanceof nat.O) ? ((nat) new nat.S(((nat) new nat.O())))
+: (n instanceof nat.S) ? let(((nat.S)n).S0, m -> top1.apply(m))
+: error("non-exhaustive match"))
+;
+}
+
+}
