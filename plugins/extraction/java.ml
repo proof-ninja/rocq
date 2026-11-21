@@ -176,6 +176,104 @@ let pp_gen_pat table = function
   | Ptuple _ -> user_err Pp.(str "Cannot handle tuple patterns in Java yet.")
   | Pwild | Prel _ -> assert false (* catch-all: handled in pp_pat_branches *)
 
+(*s Local mutual fixes.
+
+    A local fix has no type of its own: [fixK] is typed by javac's inference
+    at each use. A local mutual fix is therefore rewritten into nested single
+    fixes before printing, so that each member is again a [fixK] typed where
+    it is used. The members other than the selected one are eliminated one
+    at a time: eliminating [f_j] substitutes [fix f_j. d_j] for [f_j] in the
+    bodies of the other members, which leaves a mutual fix of one member
+    less. The body of [f_j] is thus copied at each of its uses in the other
+    members' bodies. With two members, the size grows by the partner's body
+    for each of its uses (CompCert's [Cexec.step_expr] has two members, and
+    three uses of [step_exprlist]). With more, the copies contain copies:
+    when all members call each other, the size grows doubly exponentially
+    in the number of members. The rewriting therefore gives up, with the
+    error the printer used to give, once the members' bodies grow past
+    [mutual_fix_growth] times the size of the original group.
+
+    The rewriting has costs beyond size, as each call to another member is
+    now an application of a local fix:
+    - A [let] of such a call is substituted into its body, as for any
+      applied fix head (see the [MLletin] case), so the call is evaluated
+      once per use of the variable.
+    - Such a call in a position without a concrete target type (an
+      argument of another member's call, of a polymorphic function)
+      infers its [fixK] result type as [Object], and its self calls are
+      not cast back where they are used at a concrete type (#70).
+    - The selected member's body contains a local fix, so the [Object]
+      printing of a fix applied to [Object] arguments (#35) does not
+      apply to it.
+    - Calls between members are not loops: only self tail calls are (see
+      "Self tail calls").
+
+    In the bodies of [MLfix (_, ids, defs)] with [n] members, member [m] is
+    [MLrel (n - m)] (see [push_vars] in [pp_fix]'s callers). *)
+
+(* [subst_rels v d t] substitutes [v.(i-1)] for [Rel i] in [t] for
+   [1 <= i <= Array.length v], and [Rel (i + d)] for the [Rel i] above. *)
+let subst_rels v d t =
+  let len = Array.length v in
+  let rec subst n = function
+    | MLrel i as a ->
+        let i' = i - n in
+        if i' < 1 then a
+        else if i' <= len then ast_lift n v.(i' - 1)
+        else MLrel (i + d)
+    | a -> ast_map_lift subst n a
+  in
+  subst 0 t
+
+(* Eliminates member [j] of the mutual fix [ids, defs] ([j <> i], the
+   selected member), which yields the remaining members, with [i]'s new
+   index. *)
+let elim_fix_member i j ids defs =
+  let n = Array.length ids in
+  let idx m = if m < j then m else m - 1 in
+  (* [fix f_j. d_j], under the binders of the remaining members: in [d_j],
+     [f_j] is the fix's own [Rel 1], and member [m] is one binder further
+     than in the remaining members' bodies. *)
+  let fj =
+    let v = Array.init n (fun r ->
+      let m = n - (r + 1) in
+      if Int.equal m j then MLrel 1 else MLrel (1 + (n - 1) - idx m))
+    in
+    MLfix (0, [|ids.(j)|], [|subst_rels v 0 defs.(j)|])
+  in
+  let v = Array.init n (fun r ->
+    let m = n - (r + 1) in
+    if Int.equal m j then fj else MLrel ((n - 1) - idx m))
+  in
+  let keep a = List.filteri (fun m _ -> not (Int.equal m j)) (Array.to_list a) in
+  let defs' = List.map (subst_rels v (-1)) (keep defs) in
+  idx i, Array.of_list (keep ids), Array.of_list defs'
+
+let rec ast_nodes a =
+  let n = ref 1 in
+  ast_iter (fun b -> n := !n + ast_nodes b) a;
+  !n
+
+let mutual_fix_growth = 8
+
+let rec elim_mutual_fix a =
+  match ast_map elim_mutual_fix a with
+  | MLfix (_, ids, _) as fix when Array.length ids > 1 ->
+      let limit = mutual_fix_growth * ast_nodes fix in
+      let rec elim = function
+        | MLfix (i, ids, defs) when Array.length ids > 1 ->
+            let j = if Int.equal i 0 then 1 else 0 in
+            let i', ids', defs' = elim_fix_member i j ids defs in
+            let fix' = MLfix (i', ids', defs') in
+            if ast_nodes fix' > limit then
+              user_err Pp.(str "Cannot handle this local mutually recursive definition in Java yet: " ++
+                str "rewriting it into nested fixes makes it too large.")
+            else elim fix'
+        | a -> a
+      in
+      elim fix
+  | a -> a
+
 let fix_arities = ref Int.Set.empty
 
 let reset_fix_arities () =
@@ -967,7 +1065,7 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
 and pp_fix ?fn_ty table env tenv i (ids,bl) args =
   if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
           && Int.equal i 0)
-  then user_err Pp.(str "Cannot handle mutually recursive definitions in Java yet.");
+  then assert false (* rewritten by [elim_mutual_fix] *);
   let k = List.length args in
   (* The fix itself is [MLrel 1] in its body. [$tfixN] takes exactly the
      arguments of the loop; a fix applied to fewer or more stays [fixK]. *)
@@ -1192,6 +1290,7 @@ let pp_decl table = function
         record_type_alias r body;
         mt ()
   | Dfix (rv, defs, ty) ->
+    let defs = Array.map elim_mutual_fix defs in
     (* Declare fields first, then assign in an instance initializer block.
        This avoids the "self-reference in initializer" error that occurs when a
        recursive lambda field initializer refers to the field being initialized. *)
@@ -1227,6 +1326,7 @@ let pp_decl table = function
     Array.fold_left (++) (mt ()) (Array.init n init) ++
     str "}" ++ fnl2()
   | Dterm (r, a, t) ->
+      let a = elim_mutual_fix a in
       let t = expand_aliases t in
       record_const_type r t;
       if is_inline_custom r then mt ()
