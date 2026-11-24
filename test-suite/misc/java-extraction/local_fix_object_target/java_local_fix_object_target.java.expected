@@ -1,0 +1,378 @@
+import java.util.function.Function;
+
+class java_local_fix_object_target {
+
+static <A, B> B let(A val, Function<A, B> cont) { return cont.apply(val); }
+
+static <A> A error(String msg) { throw new RuntimeException(msg); }
+
+static final Function<Object, Object> __dummy = new Function<Object, Object>() {
+  public Object apply(Object x) { return this; }
+};
+
+@SuppressWarnings("unchecked")
+static <A> A __() { return (A) __dummy; }
+
+static <A1, R> R fix1(Function<Function<A1, R>, Function<A1, R>> gen, A1
+a1) {
+  return gen.apply(x1 -> fix1(gen, x1)).apply(a1);
+}
+
+static <A1, A2, R>
+R fix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, R>>> gen, A1
+a1, A2
+a2) {
+  return gen.apply(x1 -> x2 -> fix2(gen, x1, x2)).apply(a1).apply(a2);
+}
+
+static abstract class $Step2<A1, A2, R> {}
+static final class $Done2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final R value;
+  $Done2(R value) { this.value = value; }
+}
+static final class $Next2<A1, A2, R> extends $Step2<A1, A2, R> {
+  final A1 a1; final A2 a2;
+  $Next2(A1 a1, A2 a2) { this.a1 = a1; this.a2 = a2; }
+}
+static <A1, A2, R> $Step2<A1, A2, R> $done2(R value) { return new $Done2<>(value); }
+static <A1, A2, R> $Step2<A1, A2, R> $next2(A1 a1, A2 a2) { return new $Next2<>(a1, a2); }
+static <A1, A2, R> R $run2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body, A1 a1, A2 a2) {
+  while (true) {
+    $Step2<A1, A2, R> s = body.apply(a1).apply(a2);
+    if (s instanceof $Next2<A1, A2, R> n) { a1 = n.a1; a2 = n.a2; }
+    else return (($Done2<A1, A2, R>) s).value;
+  }
+}
+static <A1, A2, R> Function<A1, Function<A2, R>> $loop2(Function<A1, Function<A2, $Step2<A1, A2, R>>> body) {
+  return a1 -> a2 -> $run2(body, a1, a2);
+}
+static <A1, A2, R> R $tfix2(Function<Function<A1, Function<A2, R>>, Function<A1, Function<A2, $Step2<A1, A2, R>>>> gen, A1 a1, A2 a2) {
+  return $run2(gen.apply(x1 -> x2 -> $tfix2(gen, x1, x2)), a1, a2);
+}
+
+public interface nat {
+public static class O implements nat {
+  
+  O() {
+    }
+    
+  }
+
+public static class S implements nat {
+  final nat S0;
+  
+  S(nat S0) {
+    this.S0 = S0;
+    }
+    
+  }
+
+}
+
+public interface pos {
+public static class XH implements pos {
+  
+  XH() {
+    }
+    
+  }
+
+public static class XO implements pos {
+  final pos XO0;
+  
+  XO(pos XO0) {
+    this.XO0 = XO0;
+    }
+    
+  }
+
+}
+
+public interface bool {
+public static class True implements bool {
+  
+  True() {
+    }
+    
+  }
+
+public static class False implements bool {
+  
+  False() {
+    }
+    
+  }
+
+}
+
+public interface prod {
+public static class Pair implements prod {
+  final Object Pair0;
+  final Object Pair1;
+  
+  Pair(Object Pair0, Object Pair1) {
+    this.Pair0 = Pair0;
+    this.Pair1 = Pair1;
+    }
+    
+  }
+
+}
+
+static Function<nat, Function<nat, nat>> add;
+static {
+add = n -> m ->
+((n instanceof nat.O) ? m
+: (n instanceof nat.S) ? let(((nat.S)n).S0, p ->
+                         ((nat) new nat.S(add.apply(p).apply(m))))
+: error("non-exhaustive match"))
+;
+}
+
+static Function<Object, Object> id = x -> x
+  ;
+
+static Function<nat, prod> field = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(f -> n0 ->
+  ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            ((pos) new pos.XO(((pos) f.apply(m)))))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<nat, pos> param = n ->
+  ((pos) id.apply(fix1(f -> n0 ->
+           ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+           : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                                     ((pos) new pos.XO(((pos) f.apply(m)))))
+           : error("non-exhaustive match"))
+           , n)))
+  ;
+
+static Function<nat, nat> scrut = n ->
+  (let(fix1(f -> n0 ->
+   ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+   : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                             ((pos) new pos.XO(((pos) f.apply(m)))))
+   : error("non-exhaustive match"))
+   , n), scrutinee ->
+   (scrutinee instanceof pos.XH) ? ((nat) new nat.O())
+   : (scrutinee instanceof pos.XO) ? ((nat) new nat.S(((nat) new nat.O())))
+   : error("non-exhaustive match")))
+  ;
+
+static Function<nat, prod> twice = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(f -> n0 ->
+  ((n0 instanceof nat.O) ? ((nat) new nat.S(((nat) new nat.O())))
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            add.apply(((nat) f.apply(m))).apply(((nat) f
+                                                         .apply(m))))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<nat, prod> tail = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), $tfix2(f -> n0 -> acc ->
+  ((n0 instanceof nat.O) ? $done2(acc)
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            ((m instanceof nat.O) ? $done2(((nat)
+                               new nat.S(((nat) f.apply(m).apply(acc)))))
+                            : (m instanceof nat.S) ? let(((nat.S)m).S0, p ->
+                                                     $next2(p, ((nat)
+                                                     new nat.S(acc))))
+                            : error("non-exhaustive match")))
+  : error("non-exhaustive match"))
+  , n, ((nat) new nat.O()))))
+  ;
+
+static Function<nat, prod> in_arg = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), $tfix2(d -> n0 -> x ->
+  ((n0 instanceof nat.O) ? $done2(x)
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            $next2(m, fix1(a -> k ->
+                            ((k instanceof nat.O) ? ((nat) new nat.O())
+                            : (k instanceof nat.S) ? let(((nat.S)k).S0, j ->
+                                                     ((nat)
+                                                     new nat.S(a.apply(j))))
+                            : error("non-exhaustive match"))
+                            , ((nat) new nat.S(x)))))
+  : error("non-exhaustive match"))
+  , n, ((nat) new nat.O()))))
+  ;
+
+static Function<nat, prod> in_body = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(d -> n0 ->
+  ((n0 instanceof nat.O) ? ((nat) new nat.O())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            add.apply(((nat) d.apply(m))).apply(fix1(a -> k ->
+                                                         ((k instanceof nat.O) ? ((nat)
+                                                            new nat.S(((nat)
+                                                            new nat.O())))
+                                                         : (k instanceof nat.S) ? 
+                                                             let(((nat.S)k).S0, j ->
+                                                             ((nat)
+                                                             new nat.S(a
+                                                             .apply(j))))
+                                                         : error("non-exhaustive match"))
+                                                         , m)))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<nat, prod> in_tail = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(d -> n0 ->
+  ((n0 instanceof nat.O) ? ((nat) new nat.O())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            fix1(a -> k ->
+                            ((k instanceof nat.O) ? d.apply(m)
+                            : (k instanceof nat.S) ? let(((nat.S)k).S0, j ->
+                                                     ((nat)
+                                                     new nat.S(((nat) a
+                                                     .apply(j)))))
+                            : error("non-exhaustive match"))
+                            , m))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<nat, nat> idn = r -> r
+  ;
+
+static Function<nat, prod> cps_object = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), $tfix2(f -> n0 -> k ->
+  ((n0 instanceof nat.O) ? $done2(k.apply(((nat) new nat.O())))
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            $next2(m, r ->
+                            k.apply(((nat) new nat.S(((nat) new nat.S(r)))))
+                            ))
+  : error("non-exhaustive match"))
+  , n, idn)))
+  ;
+
+static Function<nat, nat> cps = n -> $tfix2(f -> n0 -> k ->
+  ((n0 instanceof nat.O) ? $done2(k.apply(((nat) new nat.O())))
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            $next2(m, r ->
+                            k.apply(((nat) new nat.S(((nat) new nat.S(r)))))
+                            ))
+  : error("non-exhaustive match"))
+  , n, idn)
+  ;
+
+static Function<nat, prod> depth = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(f -> n0 ->
+  ((n0 instanceof nat.O) ? ((nat) new nat.O())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            ((prod)
+                            new prod.Pair(let(f.apply(m), x ->
+                                          ((m instanceof nat.O) ? ((nat)
+                                             new nat.S(((nat) x)))
+                                          : (m instanceof nat.S) ? ((nat)
+                                              new nat.O())
+                                          : error("non-exhaustive match"))), f
+                            .apply(m))))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+public interface tri {
+public static class T1 implements tri {
+  
+  T1() {
+    }
+    
+  }
+
+public static class T2 implements tri {
+  
+  T2() {
+    }
+    
+  }
+
+public static class T3 implements tri {
+  final nat T30;
+  
+  T3(nat T30) {
+    this.T30 = T30;
+    }
+    
+  }
+
+}
+
+static Function<tri, nat> tri_rank = p ->
+  ((p instanceof tri.T1) ? ((nat) new nat.O())
+  : ((nat) new nat.S(((nat) new nat.O()))))
+  ;
+
+static Function<nat, nat> catch_all = n ->
+  (let(fix1(f -> n0 ->
+   ((n0 instanceof nat.O) ? ((tri) new tri.T1())
+   : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                             (let(f.apply(m), scrutinee ->
+                              (scrutinee instanceof tri.T1) ? ((tri)
+                                new tri.T2())
+                              : ((tri) new tri.T3(m)))))
+   : error("non-exhaustive match"))
+   , n), scrutinee ->
+   (scrutinee instanceof tri.T1) ? ((nat)
+     new nat.S(((nat)
+     new nat.S(((nat)
+     new nat.O())))))
+   : let(scrutinee, x -> tri_rank.apply(((tri) x)))))
+  ;
+
+static Function<nat, prod> fun_result = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(f -> n0 ->
+  ((n0 instanceof nat.O) ? ((Function<Object, Object>)(x -> x
+     ))
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            let(f.apply(m), g ->
+                            ((Function<Object, Object>)(x -> ((nat)
+                            new nat.S(((nat) ((Function<Object, Object>) g)
+                            .apply(x))))
+                            ))))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<Function<nat, pos>, Function<nat, pos>> app_pos = h -> h
+  ;
+
+static Function<nat, prod> self_value = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix1(f -> n0 ->
+  ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            ((pos)
+                            new pos.XO(app_pos.apply(((Function<nat, pos>) (Object) f))
+                                              .apply(m))))
+  : error("non-exhaustive match"))
+  , n)))
+  ;
+
+static Function<nat, prod> self_partial = n -> ((prod) new prod.Pair(((bool)
+  new bool.True()), fix2(f -> n0 -> acc ->
+  ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+  : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                            ((pos)
+                            new pos.XO(app_pos.apply(((Function<nat, pos>) (Object) f
+                                              .apply(m))).apply(acc))))
+  : error("non-exhaustive match"))
+  , n, ((nat) new nat.O()))))
+  ;
+
+static Function<nat, nat> scrut_object = n ->
+  (let(fix1(f -> n0 ->
+   ((n0 instanceof nat.O) ? ((pos) new pos.XH())
+   : (n0 instanceof nat.S) ? let(((nat.S)n0).S0, m ->
+                             ((pos) new pos.XO(((pos) f.apply(m)))))
+   : error("non-exhaustive match"))
+   , id.apply(n)), scrutinee ->
+   (scrutinee instanceof pos.XH) ? ((nat) new nat.O())
+   : (scrutinee instanceof pos.XO) ? ((nat) new nat.S(((nat) new nat.O())))
+   : error("non-exhaustive match")))
+  ;
+
+}

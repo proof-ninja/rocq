@@ -509,6 +509,24 @@ let rec arrows_upto t k =
     | Tmeta { contents = Some t; _ } -> arrows_upto t k
     | _ -> 0
 
+(* A parameter type known to nobody but javac: the parameter of a local
+   fix, whose type javac infers from the arguments. Its id is outside
+   those of [Mlutil.new_meta] (counted from 1), and the printer never
+   instantiates a meta, so it stays recognizable. It erases to [Object]
+   like any unset meta, but [arg_types] and [peel_lams] report it as
+   unknown ([None]), so that neither an argument nor a use of the
+   parameter is cast on its account, and [pp_cast] does not compare it
+   (see [pp_typed_fix]). Being a [Tmeta], it must not reach [pp_type],
+   which rejects metas: a type that may contain it is printed through
+   [erase_type], as [pp_cast] and [pp_lambda_target] do. *)
+let inferred_param () = Tmeta { id = -1; contents = None }
+
+let is_inferred_param = function
+  | Tmeta { id = -1; contents = None } -> true
+  | _ -> false
+
+let known_param a = if is_inferred_param a then None else Some a
+
 (* Expected types of the first [k] arguments of a function of type [t].
    Past the arrow chain the head is a type variable instantiated to a
    function, whose Java parameters are [Object] (see [apply_cast]): those
@@ -517,7 +535,7 @@ let rec arrows_upto t k =
 let rec arg_types t k =
   if Int.equal k 0 then []
   else match t with
-    | Tarr (a, b) -> Some a :: arg_types b (k - 1)
+    | Tarr (a, b) -> known_param a :: arg_types b (k - 1)
     | Tmeta { contents = Some t; _ } -> arg_types t k
     | _ -> List.init k (fun _ -> Some Tunknown)
 
@@ -531,7 +549,7 @@ let rec arg_types t k =
 let rec peel_lams t k =
   if Int.equal k 0 then [], Some t
   else match t with
-    | Tarr (a, b) -> let ps, r = peel_lams b (k - 1) in Some a :: ps, r
+    | Tarr (a, b) -> let ps, r = peel_lams b (k - 1) in known_param a :: ps, r
     | Tmeta { contents = Some t; _ } -> peel_lams t k
     | _ -> List.init k (fun _ -> Some Tunknown), None
 
@@ -660,6 +678,25 @@ let rec contains_fix a = match a with
       (try ast_iter (fun b -> if contains_fix b then raise Exit) a; false
        with Exit -> true)
 
+(* Whether a local fix [def] applied to [k] arguments at [expected] is
+   printed typed (see [pp_typed_fix]): exactly applied, at a known
+   position. An unknown position ([None]) does not qualify: javac may
+   infer the result type there from a context the printer does not see. *)
+let typed_fix expected def k =
+  k > 0 && Int.equal (lambda_arity def) k && Option.has_some expected
+
+(* [erases_same], except that an [inferred_param] in the actual type [a]
+   (a local fix used as a value or partially applied, see
+   [pp_typed_fix]) stands for whatever javac inferred, assumed to be the
+   expected type: only the parts of [a] the printer knows are compared. *)
+let rec erases_same_inferred a e = match a, e with
+  | a, _ when is_inferred_param a -> true
+  | Tmeta { contents = Some a; _ }, _ -> erases_same_inferred a e
+  | _, Tmeta { contents = Some e; _ } -> erases_same_inferred a e
+  | Tarr (a1, a2), Tarr (e1, e2) ->
+      erases_same_inferred a1 e1 && erases_same_inferred a2 e2
+  | _ -> erases_same a e
+
 (* Wraps [pp] in a cast to [expected] when both types are known and their
    erased Java forms differ. An unknown side inserts no cast: guessing
    would sprinkle casts over monomorphic code (whose output must not
@@ -671,7 +708,7 @@ let pp_cast table ~expected ~actual pp =
   match expected, actual with
   | None, _ | _, None -> pp
   | Some ety, Some aty ->
-      if erases_to_object ety || erases_same aty ety then pp
+      if erases_to_object ety || erases_same_inferred aty ety then pp
       else
         let bridge =
           if erases_to_object aty then mt () else str "(Object) "
@@ -784,9 +821,11 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
            where the body uses it with no expected type, so such a fix is
            printed as any other. So is a fix whose body contains a local
            fix: the inner fix's result type would be inferred from the
-           outer body's, [Object], and its self calls, which have no type,
-           would not be cast back where their results are used at a
-           concrete type. *)
+           outer body's, [Object], and its self calls would not be cast
+           back where their results are used at a concrete type. (An
+           exactly applied inner fix is now typed at [Object] and cast,
+           see [pp_typed_fix], but not one applied to fewer or more
+           arguments; the guard is to be revisited with #68.) *)
         let k = List.length args' in
         let fn_ty = fn_type_of (List.init k (fun _ -> None)) Tunknown in
         let stl = List.map (pp_expr table env tenv (Some Tunknown) []) args' in
@@ -934,6 +973,9 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
         let typ = expand_aliases typ in
         let branch_expected = if List.is_empty args then expected else None in
         apply (paren (pp_pat ~tail table env tenv typ branch_expected t pv))
+    | MLfix (0, ids, [|def|])
+      when typed_fix expected def (List.length args) ->
+        pp_typed_fix table env tenv (Option.get expected) ids def args
     | MLfix (i,ids,defs) ->
         (* No cast: [fixK] is a generic method, target-typed by context. *)
         let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
@@ -963,6 +1005,39 @@ and pp_expr_node ?(tail=NoTail) table env tenv expected args =
     | MLfloat _ -> user_err Pp.(str "Cannot handle primitive floats in Java yet.")
     | MLstring _ -> user_err Pp.(str "Cannot handle primitive strings in Java yet.")
     | MLparray _ -> user_err Pp.(str "Cannot handle persistent arrays in Java yet.")
+
+(* A local fix applied to all its parameters at a known expected type
+   [res]. javac infers the result type of its [fixK] from that target
+   alone ([gen] is an implicitly typed lambda, which does not take part
+   in the inference): as [res], or as [Object] where [res] erases to it.
+   A self call then returns that type, so the fix is typed
+   [? -> ... -> ? -> res]: a self call's result is cast by [apply_cast]
+   where its use site has another type, as at [Object] (#70). Such a cast
+   goes to the type the use site has in ML, which the value has whatever
+   the iteration.
+
+   The body is printed at [res] only where [res] erases to [Object] (no
+   cast is ever made to [Object]): there a local fix in tail position is
+   typed the same way. At a concrete [res] the body is printed at [None]
+   as before: [res] is the type of the first iteration's result, which a
+   fix of dependent type does not keep, so casting the body's results to
+   it would turn javac errors into runtime ClassCastExceptions. A self
+   call of an enclosing fix in tail position there is thus not cast.
+
+   The parameters are left to javac ([inferred_param]), uncast, for the
+   same reason: typing them as the arguments javac infers them from
+   would cast a self call's argument to the type of the first
+   iteration's argument (see the [MLapp (MLfix ...)] case of
+   [pp_expr_node]). A self call's result passed to a self call at
+   [Object] thus still fails javac. *)
+and pp_typed_fix table env tenv res ids def args =
+  let fn_ty =
+    List.fold_right (fun _ acc -> Tarr (inferred_param (), acc)) args res
+  in
+  let body_ty = if erases_to_object res then Some fn_ty else None in
+  let ids',env' = push_vars (List.rev (Array.to_list ids)) env in
+  pp_fix ?fn_ty:body_ty table env' (Some fn_ty :: tenv) 0
+    (Array.of_list (List.rev ids'), [|def|]) args
 
 and pp_fix ?fn_ty table env tenv i (ids,bl) args =
   if not (Int.equal (Array.length ids) 1 && Int.equal (Array.length bl) 1
@@ -1036,25 +1111,34 @@ and pp_one_pat ~tail table env tenv typ expected exp (ids,p,t) =
 (* A top-level [Pwild] or [Prel] matches unconditionally, so it cannot (and
    need not) be tested with [instanceof]: its body is the default of the
    conditional chain. [Prel] additionally binds the scrutinee to a variable. *)
-and pp_catch_all_pat ~tail table env tenv typ expected scrut (ids,p,t) =
+and pp_catch_all_pat ~scrut_ty ~tail table env tenv typ expected scrut (ids,p,t) =
   match p with
   | Pwild ->
       assert (List.is_empty ids);
       pp_expr ~tail table env tenv expected [] t
   | Prel _ ->
       let ids', env' = push_vars (List.rev_map id_of_mlid ids) env in
-      let body = pp_expr ~tail:(shift_tail 1 tail) table env' (Some typ :: tenv) expected [] t in
+      let body = pp_expr ~tail:(shift_tail 1 tail) table env' (scrut_ty :: tenv) expected [] t in
       (match ids' with
        | [id] -> pp_letin (pr_id id) scrut body
        | _ -> assert false)
   | _ -> assert false
 
 and pp_pat ~tail table env tenv typ expected t pv =
-  let exp = pp_expr table env tenv None [] t in
+  (* A scrutinee is bound by [let], whose type parameter it alone
+     determines: its target is [Object]. Only a scrutinee headed by a
+     local fix is told so, for an exactly applied one to be typed (see
+     [pp_typed_fix]); the value of any is at [Object], and so is a
+     catch-all branch's variable bound to it. [scrut_ty] is that
+     variable's type. *)
+  let scrut_expected, scrut_ty =
+    if is_fix_head t then Some Tunknown, Some Tunknown else None, Some typ
+  in
+  let exp = pp_expr table env tenv scrut_expected [] t in
   match t with
   | MLrel _ | MLglob _ ->
       (* already a simple value: safe and cheap to repeat in place *)
-      pp_pat_branches ~tail table env tenv typ expected exp pv
+      pp_pat_branches ~scrut_ty ~tail table env tenv typ expected exp pv
   | _ ->
       (* bind the scrutinee once so a complex/effectful expression is not
          re-evaluated in every [instanceof] test and field access. The name is
@@ -1064,16 +1148,16 @@ and pp_pat ~tail table env tenv typ expected t pv =
       let scrut_id = rename_id (Id.of_string "scrutinee") avoid in
       let env = (db, Id.Set.add scrut_id avoid) in
       let scrut = pr_id scrut_id in
-      pp_letin scrut exp (pp_pat_branches ~tail table env tenv typ expected scrut pv)
+      pp_letin scrut exp (pp_pat_branches ~scrut_ty ~tail table env tenv typ expected scrut pv)
 
 (* Every constructor branch (including the last one) is guarded by an
    [instanceof] test; the chain ends with the first catch-all branch if any,
    otherwise with an explicit match-failure so that a value fitting no branch
    raises a clear error instead of an accidental ClassCastException. *)
-and pp_pat_branches ~tail table env tenv typ expected scrut pv =
+and pp_pat_branches ~scrut_ty ~tail table env tenv typ expected scrut pv =
   let tests, default = printed_branches pv in
   let pp_default = match default with
-    | Some b -> pp_catch_all_pat ~tail table env tenv typ expected scrut b
+    | Some b -> pp_catch_all_pat ~scrut_ty ~tail table env tenv typ expected scrut b
     | None -> str "error(\"non-exhaustive match\")"
   in
   prlist_strict
