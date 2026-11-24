@@ -516,7 +516,9 @@ let rec arrows_upto t k =
    like any unset meta, but [arg_types] and [peel_lams] report it as
    unknown ([None]), so that neither an argument nor a use of the
    parameter is cast on its account, and [pp_cast] does not compare it
-   (see [pp_typed_fix]). *)
+   (see [pp_typed_fix]). Being a [Tmeta], it must not reach [pp_type],
+   which rejects metas: a type that may contain it is printed through
+   [erase_type], as [pp_cast] and [pp_lambda_target] do. *)
 let inferred_param () = Tmeta { id = -1; contents = None }
 
 let is_inferred_param = function
